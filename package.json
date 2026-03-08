@@ -1,0 +1,13 @@
+{
+  "name": "togewatch",
+  "version": "1.0.0",
+  "description": "Watch YouTube together, in perfect sync — no matter the distance.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.7.2"
+  }
+}

@@ -1,0 +1,1027 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#080F10" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>DYAD — Watch Together</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet" />
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+
+  <style>
+    /* ══════════════════════════════════════════
+       DESIGN TOKENS — DYAD PREMIUM PALETTE
+       Primary:  #103F47  Deep Teal
+       Accent:   #E1C179  Champagne Gold
+    ══════════════════════════════════════════ */
+    :root {
+      /* Backgrounds */
+      --bg:          #080F10;   /* near-black, teal undertone */
+      --bg-deep:     #050b0c;   /* deepest layer */
+      --surface:     #0D2A30;   /* card surface */
+      --surface2:    #103F47;   /* elevated surface (brand teal) */
+      --surface3:    #1A5561;   /* hover / active surface */
+
+      /* Borders */
+      --border:      rgba(225, 193, 121, 0.10);
+      --border-hi:   rgba(225, 193, 121, 0.24);
+      --border-dim:  rgba(255, 255, 255, 0.05);
+
+      /* Accent — Champagne Gold family */
+      --gold:        #E1C179;   /* primary accent */
+      --gold-deep:   #C4A55A;   /* darker gold for gradients */
+      --gold-pale:   #F0D99A;   /* highlight / hover */
+      --gold-glow:   rgba(225, 193, 121, 0.18);
+      --gold-subtle: rgba(225, 193, 121, 0.08);
+
+      /* Teal family */
+      --teal:        #103F47;
+      --teal-mid:    #1A5561;
+      --teal-bright: #2B7A8A;   /* active states */
+      --teal-mist:   rgba(16, 63, 71, 0.6);
+
+      /* Text */
+      --text:        #F0EAD6;   /* warm ivory — not cold white */
+      --text-dim:    #7A9DA3;   /* muted teal-grey */
+      --text-faint:  #4A6E75;   /* very muted */
+
+      /* Status */
+      --green:       #5ECBA1;   /* softer emerald — fits the palette */
+      --red:         #E07070;
+
+      /* Typography */
+      --font-brand:  'Cormorant', serif;
+      --font-ui:     'Outfit', sans-serif;
+
+      /* Shape */
+      --r:           14px;
+      --r-sm:        8px;
+      --r-xs:        5px;
+    }
+
+    /* ══════════════════════════════════════════
+       RESET + BASE
+    ══════════════════════════════════════════ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { height: 100%; }
+    body {
+      font-family: var(--font-ui);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100%;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Grain texture */
+    body::after {
+      content: '';
+      position: fixed; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.028'/%3E%3C/svg%3E");
+      pointer-events: none; z-index: 9999;
+    }
+
+    .hidden { display: none !important; }
+
+    /* ══════════════════════════════════════════
+       LANDING PAGE
+    ══════════════════════════════════════════ */
+    #page-landing {
+      min-height: 100svh;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 1.5rem;
+      padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
+      position: relative; overflow: hidden;
+    }
+
+    /* Teal depth layers in background */
+    .bg-layer {
+      position: fixed; border-radius: 50%; pointer-events: none;
+      filter: blur(90px); opacity: 1;
+    }
+    .bg-1 {
+      width: 600px; height: 600px;
+      background: radial-gradient(circle, rgba(16,63,71,0.55) 0%, transparent 68%);
+      top: -280px; right: -180px;
+      animation: bgDrift 18s ease-in-out infinite;
+    }
+    .bg-2 {
+      width: 500px; height: 500px;
+      background: radial-gradient(circle, rgba(26,85,97,0.35) 0%, transparent 68%);
+      bottom: -200px; left: -140px;
+      animation: bgDrift 22s ease-in-out infinite reverse;
+      animation-delay: -9s;
+    }
+    .bg-3 {
+      width: 320px; height: 320px;
+      background: radial-gradient(circle, rgba(225,193,121,0.07) 0%, transparent 68%);
+      top: 38%; left: 32%;
+      animation: bgDrift 28s ease-in-out infinite;
+      animation-delay: -14s;
+    }
+    @keyframes bgDrift {
+      0%,100% { transform: translate(0,0) scale(1); }
+      33%      { transform: translate(24px,-32px) scale(1.04); }
+      66%      { transform: translate(-16px,20px) scale(0.97); }
+    }
+
+    /* ── DYAD Logo ── */
+    .logo-block {
+      text-align: center; margin-bottom: 3rem;
+      animation: riseIn 0.7s cubic-bezier(0.22,1,0.36,1) both;
+    }
+
+    .logo-mark {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 80px; height: 80px; border-radius: 22px; margin-bottom: 1.5rem;
+      background: linear-gradient(145deg, var(--surface2), var(--teal-mid));
+      border: 1px solid var(--border-hi);
+      position: relative;
+      box-shadow:
+        0 0 0 1px var(--border),
+        0 12px 40px rgba(0,0,0,0.5),
+        inset 0 1px 0 rgba(225,193,121,0.15);
+      animation: markPulse 4s ease-in-out infinite;
+    }
+
+    /* Two interlocked circles — symbolising "dyad" (two as one) */
+    .logo-mark::before,
+    .logo-mark::after {
+      content: '';
+      position: absolute;
+      width: 26px; height: 26px;
+      border-radius: 50%;
+      border: 2.5px solid var(--gold);
+      opacity: 0.9;
+    }
+    .logo-mark::before { left: 18px; top: 50%; transform: translateY(-50%); }
+    .logo-mark::after  { right: 18px; top: 50%; transform: translateY(-50%); opacity: 0.55; }
+
+    /* Gold shimmer sweep */
+    .logo-mark-shine {
+      position: absolute; inset: 0; border-radius: inherit;
+      background: linear-gradient(110deg, transparent 35%, rgba(225,193,121,0.22) 50%, transparent 65%);
+      background-size: 220% 100%;
+      animation: goldSweep 3.5s ease-in-out infinite;
+    }
+
+    @keyframes goldSweep {
+      0%   { background-position: 220% 0; }
+      100% { background-position: -220% 0; }
+    }
+    @keyframes markPulse {
+      0%,100% { box-shadow: 0 0 0 1px var(--border), 0 12px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(225,193,121,0.15); }
+      50%      { box-shadow: 0 0 0 1px var(--border-hi), 0 12px 60px rgba(0,0,0,0.6), 0 0 32px rgba(225,193,121,0.1), inset 0 1px 0 rgba(225,193,121,0.2); }
+    }
+
+    .brand-name {
+      font-family: var(--font-brand);
+      font-size: clamp(3.2rem, 10vw, 5rem);
+      font-weight: 700;
+      letter-spacing: 0.25em;
+      color: var(--gold);
+      line-height: 1;
+      text-shadow: 0 0 60px rgba(225,193,121,0.2);
+    }
+
+    .tagline {
+      font-size: 0.73rem; letter-spacing: 0.28em; text-transform: uppercase;
+      color: var(--text-dim); margin-top: 0.6rem; font-weight: 300;
+    }
+
+    /* ── Landing Cards ── */
+    .landing-inner { width: 100%; max-width: 420px; }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 1.75rem;
+      margin-bottom: 0.7rem;
+      transition: border-color 0.3s, box-shadow 0.3s;
+      animation: riseIn 0.6s cubic-bezier(0.22,1,0.36,1) both;
+      position: relative; overflow: hidden;
+    }
+    .card:nth-child(1) { animation-delay: 0.1s; }
+    .card:nth-child(2) { animation-delay: 0.2s; }
+
+    /* Subtle teal sheen on the top edge */
+    .card::before {
+      content: '';
+      position: absolute; top: 0; left: 10%; right: 10%; height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(225,193,121,0.3), transparent);
+      opacity: 0; transition: opacity 0.3s;
+    }
+    .card:focus-within { border-color: var(--border-hi); box-shadow: 0 0 0 4px rgba(225,193,121,0.06), 0 8px 32px rgba(0,0,0,0.3); }
+    .card:focus-within::before { opacity: 1; }
+
+    .card-label {
+      font-size: 0.65rem; letter-spacing: 0.22em; text-transform: uppercase;
+      color: var(--text-dim); margin-bottom: 1.1rem;
+      display: flex; align-items: center; gap: 0.7rem;
+    }
+    .card-label::before, .card-label::after {
+      content: ''; flex: 1; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--border-dim), transparent);
+    }
+
+    @keyframes riseIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Inputs ── */
+    input[type="text"] {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid rgba(16,63,71,0.9);
+      border-radius: var(--r-sm);
+      padding: 0.85rem 1rem;
+      font-family: var(--font-ui);
+      font-size: 0.95rem;
+      color: var(--text);
+      outline: none; margin-bottom: 0.85rem;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      -webkit-appearance: none;
+    }
+    input[type="text"]::placeholder { color: var(--text-faint); }
+    input[type="text"]:focus {
+      border-color: var(--gold-deep);
+      box-shadow: 0 0 0 3px rgba(225,193,121,0.08);
+    }
+    .input-code {
+      font-family: var(--font-brand); font-size: 2.2rem;
+      text-align: center; letter-spacing: 0.35em; font-weight: 700;
+      color: var(--gold);
+    }
+    .input-code::placeholder { color: var(--text-faint); letter-spacing: 0.2em; }
+
+    /* ── Buttons ── */
+    button {
+      font-family: var(--font-ui); font-weight: 500;
+      font-size: 0.8rem; letter-spacing: 0.1em; text-transform: uppercase;
+      border: none; border-radius: var(--r-sm);
+      padding: 0.88rem 1.4rem; cursor: pointer;
+      transition: transform 0.14s, box-shadow 0.14s, background 0.2s, border-color 0.2s;
+      -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+    }
+
+    .btn-primary {
+      width: 100%;
+      background: linear-gradient(135deg, var(--gold) 0%, var(--gold-deep) 100%);
+      color: var(--bg-deep); font-weight: 600;
+      box-shadow: 0 4px 20px rgba(225,193,121,0.22);
+    }
+    .btn-primary:hover  { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(225,193,121,0.35); }
+    .btn-primary:active { transform: translateY(0); box-shadow: 0 2px 8px rgba(225,193,121,0.15); }
+
+    .btn-secondary {
+      width: 100%;
+      background: transparent;
+      border: 1px solid var(--border-hi);
+      color: var(--gold);
+    }
+    .btn-secondary:hover  { background: var(--gold-subtle); border-color: var(--gold); }
+    .btn-secondary:active { opacity: 0.8; }
+
+    /* ── Error messages ── */
+    .msg-err {
+      font-size: 0.76rem; color: var(--red);
+      background: rgba(224,112,112,0.08); border: 1px solid rgba(224,112,112,0.2);
+      border-radius: var(--r-sm); padding: 0.5rem 0.85rem;
+      margin-bottom: 0.75rem; display: none;
+    }
+    .msg-err.show { display: block; }
+
+    /* ── Divider ── */
+    .divider {
+      display: flex; align-items: center; gap: 0.9rem;
+      margin: 0.1rem 0; color: var(--text-faint);
+      font-size: 0.67rem; letter-spacing: 0.18em; text-transform: uppercase;
+    }
+    .divider::before, .divider::after {
+      content: ''; flex: 1; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--border-dim), transparent);
+    }
+
+    /* ══════════════════════════════════════════
+       WATCH ROOM
+    ══════════════════════════════════════════ */
+    #page-room {
+      display: flex; flex-direction: column; min-height: 100svh;
+      padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+    }
+
+    /* ── Top Bar ── */
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0.7rem 1.1rem;
+      padding-top: calc(0.7rem + env(safe-area-inset-top, 0px));
+      border-bottom: 1px solid var(--border);
+      background: rgba(8,15,16,0.92);
+      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+      position: sticky; top: 0; z-index: 100;
+    }
+    .topbar-brand {
+      font-family: var(--font-brand); font-size: 1.5rem; font-weight: 700;
+      letter-spacing: 0.22em; color: var(--gold);
+      text-shadow: 0 0 30px rgba(225,193,121,0.25);
+    }
+    .topbar-right { display: flex; align-items: center; gap: 0.6rem; }
+
+    .sync-pill {
+      display: flex; align-items: center; gap: 0.38rem;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 100px; padding: 0.28rem 0.72rem;
+      font-size: 0.67rem; color: var(--text-dim); letter-spacing: 0.05em;
+    }
+    .sync-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--text-faint); flex-shrink: 0; transition: all 0.3s;
+    }
+    .sync-dot.live {
+      background: var(--green);
+      box-shadow: 0 0 7px var(--green);
+      animation: dotBlink 2.2s infinite;
+    }
+    @keyframes dotBlink { 0%,100%{opacity:1} 50%{opacity:0.38} }
+
+    .code-chip {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--r-xs); padding: 0.28rem 0.65rem;
+      font-size: 0.65rem; letter-spacing: 0.1em; color: var(--text-dim);
+    }
+    .code-chip strong { color: var(--gold); letter-spacing: 0.22em; }
+
+    /* ── Player Section ── */
+    .player-section {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; padding: 1rem; gap: 0.85rem;
+    }
+    .player-wrap { width: 100%; max-width: 920px; position: relative; }
+
+    .player-box {
+      width: 100%; aspect-ratio: 16/9;
+      border-radius: var(--r); overflow: hidden;
+      background: #000; border: 1px solid var(--border);
+      position: relative;
+      box-shadow:
+        0 2px 0 0 rgba(225,193,121,0.08),
+        0 24px 80px rgba(0,0,0,0.7),
+        0 0 0 0 var(--gold-glow);
+      transition: box-shadow 0.45s ease;
+    }
+    .player-box.glow {
+      box-shadow:
+        0 2px 0 0 rgba(225,193,121,0.2),
+        0 24px 80px rgba(0,0,0,0.7),
+        0 0 48px 6px rgba(225,193,121,0.12);
+    }
+    .player-box iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+
+    /* ── Role Strip ── */
+    .role-strip {
+      width: 100%; max-width: 920px;
+      display: flex; align-items: center;
+      justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;
+    }
+    .role-pill {
+      font-size: 0.65rem; font-weight: 600; letter-spacing: 0.15em; text-transform: uppercase;
+      padding: 0.3rem 0.9rem; border-radius: 100px;
+    }
+    .role-pill.host  {
+      background: rgba(225,193,121,0.1); color: var(--gold);
+      border: 1px solid rgba(225,193,121,0.25);
+    }
+    .role-pill.guest {
+      background: rgba(94,203,161,0.1); color: var(--green);
+      border: 1px solid rgba(94,203,161,0.22);
+    }
+    .role-hint { font-size: 0.71rem; color: var(--text-dim); }
+    .guests-badge {
+      font-size: 0.69rem; color: var(--text-dim);
+      display: none; align-items: center; gap: 0.35rem;
+    }
+    .guests-badge strong { color: var(--text); }
+
+    /* ── Invite Strip ── */
+    .invite-strip {
+      display: none; width: 100%; max-width: 920px;
+      background: linear-gradient(135deg, rgba(16,63,71,0.5), rgba(26,85,97,0.3));
+      border: 1px solid var(--border-hi);
+      border-radius: var(--r); padding: 1rem 1.4rem;
+      align-items: center; justify-content: space-between;
+      gap: 1rem; flex-wrap: wrap;
+      position: relative; overflow: hidden;
+    }
+    /* Gold shimmer line along top */
+    .invite-strip::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent 5%, var(--gold) 35%, var(--gold-pale) 50%, var(--gold) 65%, transparent 95%);
+      opacity: 0.5;
+    }
+    .invite-label {
+      font-size: 0.63rem; letter-spacing: 0.2em; text-transform: uppercase;
+      color: var(--text-dim); margin-bottom: 0.2rem;
+    }
+    .invite-code {
+      font-family: var(--font-brand); font-size: 2.1rem; font-weight: 700;
+      letter-spacing: 0.35em; color: var(--gold); line-height: 1;
+    }
+    .invite-code.flash { animation: codeFlash 1.6s ease-out; }
+    @keyframes codeFlash {
+      0%   { text-shadow: none; }
+      20%  { text-shadow: 0 0 24px var(--gold), 0 0 48px rgba(225,193,121,0.5); }
+      100% { text-shadow: none; }
+    }
+    .copy-btn {
+      background: rgba(225,193,121,0.1);
+      border: 1px solid var(--border-hi);
+      color: var(--gold);
+      font-family: var(--font-ui); font-size: 0.72rem; font-weight: 600;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      border-radius: var(--r-sm); padding: 0.6rem 1.2rem;
+      cursor: pointer; transition: all 0.2s; white-space: nowrap;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .copy-btn:hover  { background: rgba(225,193,121,0.18); border-color: var(--gold); }
+    .copy-btn.copied { border-color: var(--green); color: var(--green); background: rgba(94,203,161,0.08); }
+
+    /* ══════════════════════════════════════════
+       UNIFIED DOCK
+    ══════════════════════════════════════════ */
+    .dock {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 200;
+      background: rgba(8,15,16,0.96);
+      backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+      border-top: 1px solid var(--border);
+      padding: 0.65rem 1.1rem;
+      padding-bottom: calc(0.65rem + env(safe-area-inset-bottom, 0px));
+    }
+    /* Gold shimmer line on top of dock */
+    .dock::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent 0%, rgba(225,193,121,0.15) 30%, rgba(225,193,121,0.3) 50%, rgba(225,193,121,0.15) 70%, transparent 100%);
+    }
+
+    .dock-inner {
+      max-width: 920px; margin: 0 auto;
+      display: flex; align-items: center;
+      justify-content: space-between; gap: 0.55rem;
+    }
+
+    /* ── Voice ── */
+    .dock-voice { display: flex; align-items: center; gap: 0.6rem; flex-shrink: 0; }
+
+    .mic-btn {
+      width: 46px; height: 46px; border-radius: 50%; border: none;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.2rem; cursor: pointer; position: relative;
+      background: rgba(16,63,71,0.8);
+      box-shadow: 0 0 0 1px rgba(94,203,161,0.3), inset 0 1px 0 rgba(255,255,255,0.06);
+      transition: transform 0.14s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .mic-btn::after {
+      content: ''; position: absolute; inset: 0; border-radius: 50%;
+      background: rgba(94,203,161,0.3); transform: scale(0); opacity: 0;
+    }
+    .mic-btn.ripple::after { animation: rippleOut 0.5s ease-out forwards; }
+    @keyframes rippleOut { 0%{transform:scale(0.8);opacity:0.6} 100%{transform:scale(2.4);opacity:0} }
+
+    .mic-btn.muted {
+      background: rgba(40,15,15,0.8);
+      box-shadow: 0 0 0 1px rgba(224,112,112,0.3), inset 0 1px 0 rgba(255,255,255,0.04);
+    }
+    .mic-btn.connecting {
+      background: rgba(16,63,71,0.8);
+      box-shadow: 0 0 0 1px rgba(225,193,121,0.3), inset 0 1px 0 rgba(255,255,255,0.06);
+      animation: breathe 1.7s ease-in-out infinite;
+    }
+    @keyframes breathe { 0%,100%{transform:scale(1)} 50%{transform:scale(1.08)} }
+    .mic-btn:active { transform: scale(0.9); }
+
+    .voice-info { display: flex; flex-direction: column; }
+    .voice-lbl  { font-size: 0.7rem; font-weight: 500; color: var(--text); line-height: 1.3; }
+    .voice-sub  { font-size: 0.6rem; color: var(--text-dim); line-height: 1.2; }
+
+    .wave { display: flex; align-items: center; gap: 2px; height: 16px; }
+    .wave span {
+      display: block; width: 3px; border-radius: 2px;
+      background: var(--green);
+      animation: waveBar 0.75s ease-in-out infinite;
+    }
+    .wave span:nth-child(1){height:5px;  animation-delay:0s}
+    .wave span:nth-child(2){height:13px; animation-delay:0.1s}
+    .wave span:nth-child(3){height:8px;  animation-delay:0.2s}
+    .wave span:nth-child(4){height:16px; animation-delay:0.07s}
+    .wave span:nth-child(5){height:5px;  animation-delay:0.17s}
+    @keyframes waveBar { 0%,100%{transform:scaleY(1)} 50%{transform:scaleY(0.28)} }
+    .wave.off { display: none; }
+
+    /* ── Play / Pause ── */
+    .play-btn {
+      width: 52px; height: 52px; border-radius: 50%; border: none; flex-shrink: 0;
+      background: linear-gradient(145deg, var(--gold) 0%, var(--gold-deep) 100%);
+      color: var(--bg-deep); font-size: 1.2rem;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 4px 20px rgba(225,193,121,0.3), inset 0 1px 0 rgba(255,255,255,0.25);
+      transition: transform 0.14s, box-shadow 0.14s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .play-btn:hover  { transform: scale(1.1); box-shadow: 0 6px 28px rgba(225,193,121,0.48), inset 0 1px 0 rgba(255,255,255,0.25); }
+    .play-btn:active { transform: scale(0.92); box-shadow: 0 2px 8px rgba(225,193,121,0.2); }
+
+    /* ── Emoji ── */
+    .dock-emojis { display: flex; align-items: center; gap: 0.28rem; flex-shrink: 0; }
+    .emoji-btn {
+      width: 38px; height: 38px; border-radius: 50%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      font-size: 1.1rem; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; transition: transform 0.13s, background 0.13s, border-color 0.13s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .emoji-btn:hover  { transform: scale(1.25); background: var(--surface2); border-color: var(--border-hi); }
+    .emoji-btn:active { transform: scale(0.84); }
+
+    /* ── Next Video ── */
+    .dock-next { display: flex; align-items: center; gap: 0.42rem; flex: 1; min-width: 0; }
+    .dock-next input[type="text"] {
+      flex: 1; min-width: 0; margin-bottom: 0;
+      padding: 0.55rem 0.75rem; font-size: 0.78rem;
+      background: var(--surface);
+      border-color: var(--border);
+    }
+    .dock-next input[type="text"]:focus { border-color: var(--gold-deep); }
+    .load-btn {
+      background: var(--surface2); border: 1px solid var(--border-hi);
+      color: var(--gold); font-family: var(--font-ui); font-size: 0.7rem;
+      font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase;
+      border-radius: var(--r-sm); padding: 0.55rem 0.88rem;
+      cursor: pointer; white-space: nowrap; transition: all 0.2s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .load-btn:hover   { background: var(--teal-mid); border-color: var(--gold); }
+    .load-btn.confirm { border-color: var(--green); color: var(--green); background: rgba(94,203,161,0.08); }
+
+    /* ══════════════════════════════════════════
+       EMOJI FLOATS
+    ══════════════════════════════════════════ */
+    .emoji-float {
+      position: absolute; font-size: 3rem; pointer-events: none; z-index: 50;
+      user-select: none; filter: drop-shadow(0 3px 12px rgba(0,0,0,0.6));
+      animation: floatUp 2.7s cubic-bezier(0.22,1,0.36,1) forwards;
+    }
+    @keyframes floatUp {
+      0%   { opacity:0;   transform:translateY(0)     scale(0.35) rotate(0deg); }
+      14%  { opacity:1;   transform:translateY(-22px) scale(1.3)  rotate(-5deg); }
+      50%  { opacity:1;   transform:translateY(-78px) scale(1)    rotate(7deg); }
+      100% { opacity:0;   transform:translateY(-170px) scale(0.8)  rotate(-9deg); }
+    }
+
+    /* ══════════════════════════════════════════
+       RESPONSIVE
+    ══════════════════════════════════════════ */
+    @media (max-width: 620px) {
+      .voice-info { display: none; }
+      .wave { display: none !important; }
+      .dock-inner { gap: 0.3rem; }
+      .emoji-btn { width: 34px; height: 34px; font-size: 1rem; }
+      .mic-btn   { width: 42px; height: 42px; }
+      .play-btn  { width: 48px; height: 48px; font-size: 1.15rem; }
+      .dock-next input[type="text"] { font-size: 0.72rem; padding: 0.48rem 0.58rem; }
+      .load-btn  { font-size: 0.65rem; padding: 0.48rem 0.65rem; }
+      .invite-code { font-size: 1.7rem; }
+      .brand-name  { letter-spacing: 0.18em; }
+    }
+    @media (max-width: 400px) {
+      .emoji-btn:nth-child(n+4) { display: none; }
+    }
+    @media (min-width: 768px) {
+      .dock-inner  { gap: 1rem; }
+      .dock-emojis { gap: 0.45rem; }
+      .emoji-btn   { width: 42px; height: 42px; font-size: 1.2rem; }
+    }
+    @media (max-height: 480px) and (orientation: landscape) {
+      .player-section { padding: 0.4rem; }
+      .role-strip, .invite-strip { display: none !important; }
+      #page-room { padding-bottom: calc(68px + env(safe-area-inset-bottom, 0px)); }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════
+     LANDING
+══════════════════════════════════════════ -->
+<div id="page-landing">
+  <div class="bg-layer bg-1"></div>
+  <div class="bg-layer bg-2"></div>
+  <div class="bg-layer bg-3"></div>
+
+  <div class="logo-block">
+    <div class="logo-mark"><div class="logo-mark-shine"></div></div>
+    <div class="brand-name">DYAD</div>
+    <p class="tagline">Watch together · No matter the distance</p>
+  </div>
+
+  <div class="landing-inner">
+    <div class="card">
+      <div class="card-label">Start a room</div>
+      <input type="text" id="input-url" placeholder="Paste a YouTube URL…" autocomplete="off" />
+      <div class="msg-err" id="err-create"></div>
+      <button class="btn-primary" onclick="createRoom()">Create Room &amp; Invite ›</button>
+    </div>
+
+    <div class="divider">or</div>
+
+    <div class="card">
+      <div class="card-label">Join a room</div>
+      <input type="text" id="input-code" class="input-code" placeholder="XXXXXX"
+             maxlength="6" autocomplete="off" autocapitalize="characters" />
+      <div class="msg-err" id="err-join"></div>
+      <button class="btn-secondary" onclick="joinRoom()">Join Room</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════
+     WATCH ROOM
+══════════════════════════════════════════ -->
+<div id="page-room" class="hidden">
+
+  <div class="topbar">
+    <div class="topbar-brand">DYAD</div>
+    <div class="topbar-right">
+      <div class="sync-pill">
+        <div class="sync-dot" id="sync-dot"></div>
+        <span id="sync-label">Connecting</span>
+      </div>
+      <div class="code-chip" id="code-chip" style="display:none">
+        Room&nbsp;<strong id="topbar-code">——</strong>
+      </div>
+    </div>
+  </div>
+
+  <div class="player-section">
+
+    <div class="player-wrap">
+      <div class="player-box" id="player-box">
+        <div id="yt-player"></div>
+      </div>
+    </div>
+
+    <div class="role-strip">
+      <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;">
+        <span class="role-pill" id="role-pill">—</span>
+        <span class="role-hint" id="role-hint"></span>
+      </div>
+      <div class="guests-badge" id="guests-badge">
+        👥&nbsp;<strong id="guest-count">0</strong>&nbsp;watching
+      </div>
+    </div>
+
+    <div class="invite-strip" id="invite-strip">
+      <div>
+        <div class="invite-label">Share this code with your friend</div>
+        <div class="invite-code" id="invite-code">——</div>
+      </div>
+      <button class="copy-btn" id="copy-btn" onclick="copyCode()">Copy Code</button>
+    </div>
+
+  </div><!-- /player-section -->
+
+  <!-- Unified Dock -->
+  <div class="dock">
+    <div class="dock-inner">
+
+      <div class="dock-voice">
+        <button class="mic-btn connecting" id="mic-btn" onclick="toggleMic()">🎙️</button>
+        <div class="voice-info">
+          <div class="voice-lbl" id="voice-lbl">Setting up…</div>
+          <div class="voice-sub" id="voice-sub">Awaiting mic</div>
+        </div>
+        <div class="wave off" id="voice-wave">
+          <span></span><span></span><span></span><span></span><span></span>
+        </div>
+      </div>
+
+      <button class="play-btn" id="btn-play-pause" onclick="controlPlayPause()">▶</button>
+
+      <div class="dock-emojis">
+        <button class="emoji-btn" onclick="sendEmoji('😄')">😄</button>
+        <button class="emoji-btn" onclick="sendEmoji('😢')">😢</button>
+        <button class="emoji-btn" onclick="sendEmoji('😠')">😠</button>
+        <button class="emoji-btn" onclick="sendEmoji('❤️')">❤️</button>
+        <button class="emoji-btn" onclick="sendEmoji('😉')">😉</button>
+      </div>
+
+      <div class="dock-next">
+        <input type="text" id="next-url" placeholder="Next video URL…" autocomplete="off" />
+        <button class="load-btn" id="load-btn" onclick="loadNextVideo()">Load</button>
+      </div>
+
+    </div>
+  </div>
+
+</div><!-- /page-room -->
+
+
+<script>
+  /* ── State ─────────────────────────────── */
+  let socket=null, player=null, isHost=false, isSyncing=false, roomCode=null;
+  let peer=null, localStream=null, activeCall=null, isMuted=false, voiceReady=false;
+
+  /* ── YouTube API ────────────────────────── */
+  function loadYouTubeAPI() {
+    return new Promise((resolve) => {
+      if (window.YT && window.YT.Player) { resolve(); return; }
+      const s = document.createElement('script');
+      s.src = 'https://www.youtube.com/iframe_api';
+      document.head.appendChild(s);
+      window.onYouTubeIframeAPIReady = resolve;
+    });
+  }
+
+  function createYouTubePlayer(videoId, startTime, startPlaying) {
+    return new Promise((resolve) => {
+      player = new YT.Player('yt-player', {
+        videoId,
+        playerVars: { autoplay: startPlaying?1:0, start: Math.floor(startTime), rel:0, modestbranding:1 },
+        events: {
+          onReady: (e) => { if (startTime>1) e.target.seekTo(startTime,true); resolve(); },
+          onStateChange: onPlayerStateChange,
+        }
+      });
+    });
+  }
+
+  function onPlayerStateChange(event) {
+    if (isSyncing) return;
+    const t = player.getCurrentTime();
+    if (event.data === YT.PlayerState.PLAYING) {
+      document.getElementById('btn-play-pause').textContent = '⏸';
+      socket.emit('sync-event', { type:'play', timestamp:t });
+    } else if (event.data === YT.PlayerState.PAUSED) {
+      document.getElementById('btn-play-pause').textContent = '▶';
+      socket.emit('sync-event', { type:'pause', timestamp:t });
+    }
+  }
+
+  /* ── URL Parse ──────────────────────────── */
+  function extractVideoId(url) {
+    const m = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/);
+    return m ? m[1] : null;
+  }
+
+  /* ── Emoji ──────────────────────────────── */
+  function sendEmoji(emoji) {
+    if (!socket) return;
+    socket.emit('send-emoji', { emoji });
+    spawnEmojiFloat(emoji, true);
+  }
+
+  function spawnEmojiFloat(emoji, isSelf) {
+    const box = document.getElementById('player-box');
+    if (!box) return;
+    const el = document.createElement('div');
+    el.className = 'emoji-float'; el.textContent = emoji;
+    const bw = box.offsetWidth, bh = box.offsetHeight;
+    const x = isSelf
+      ? 16 + Math.random()*(bw*0.32)
+      : bw*0.58 + Math.random()*(bw*0.32);
+    el.style.left = Math.min(Math.max(8,x), bw-56)+'px';
+    el.style.top  = (bh-68)+'px';
+    box.appendChild(el);
+    setTimeout(()=>el.remove(), 2800);
+  }
+
+  /* ── Playback ───────────────────────────── */
+  function controlPlayPause() {
+    if (!player) return;
+    player.getPlayerState()===YT.PlayerState.PLAYING ? player.pauseVideo() : player.playVideo();
+  }
+
+  /* ── Next Video ─────────────────────────── */
+  function loadNextVideo() {
+    const videoId = extractVideoId(document.getElementById('next-url').value.trim());
+    if (!videoId) { alert('Paste a valid YouTube URL first.'); return; }
+    socket.emit('change-video', { videoId });
+    document.getElementById('next-url').value = '';
+    const btn = document.getElementById('load-btn');
+    btn.textContent='✓ Done'; btn.classList.add('confirm');
+    setTimeout(()=>{ btn.textContent='Load'; btn.classList.remove('confirm'); }, 2000);
+  }
+
+  /* ── Voice ──────────────────────────────── */
+  async function initVoice() {
+    try {
+      localStream = await navigator.mediaDevices.getUserMedia({ audio:true, video:false });
+      localStream.getAudioTracks().forEach(t=>t.enabled=false);
+      isMuted = true;
+
+      peer = new Peer(undefined, { host:'0.peerjs.com', port:443, path:'/', secure:true, debug:0 });
+      peer.on('open', (peerId) => {
+        voiceReady=true;
+        setVoiceUI('muted','🔇 Muted','Tap mic to speak');
+        socket.emit('register-peer', { peerId });
+      });
+      peer.on('error', (err) => setVoiceUI('error','⚠️ No voice', err.type||''));
+      peer.on('call', (call) => {
+        call.answer(localStream); activeCall=call; attachAudio(call);
+        setVoiceUI('muted','🔇 Muted','Connected');
+      });
+    } catch(err) {
+      setVoiceUI('error','🚫 Blocked','Allow mic in browser');
+    }
+  }
+
+  function callHost(hostPeerId) {
+    if (!peer||!localStream) return;
+    const call = peer.call(hostPeerId, localStream);
+    activeCall=call; attachAudio(call);
+    call.on('close',()=>setVoiceUI('error','📵 Disconnected','Host left voice'));
+  }
+
+  function attachAudio(call) {
+    call.on('stream',(stream)=>{
+      let a = document.getElementById('remote-audio');
+      if (!a) { a=document.createElement('audio'); a.id='remote-audio'; a.autoplay=true; document.body.appendChild(a); }
+      a.srcObject=stream;
+      setVoiceUI('muted','🔇 Muted','Voice live ✓');
+    });
+  }
+
+  function toggleMic() {
+    if (!voiceReady||!localStream) { initVoice(); return; }
+    const btn = document.getElementById('mic-btn');
+    btn.classList.remove('ripple'); void btn.offsetWidth; btn.classList.add('ripple');
+    isMuted = !isMuted;
+    localStream.getAudioTracks().forEach(t=>t.enabled=!isMuted);
+    const wave = document.getElementById('voice-wave');
+    if (isMuted) {
+      btn.textContent='🔇'; btn.className='mic-btn muted'; wave.classList.add('off');
+      setVoiceUI('muted','🔇 Muted','Tap to speak');
+    } else {
+      btn.textContent='🎙️'; btn.className='mic-btn'; wave.classList.remove('off');
+      setVoiceUI('live','🎙️ Speaking','Tap to mute');
+    }
+  }
+
+  function setVoiceUI(state, lbl, sub) {
+    document.getElementById('voice-lbl').textContent=lbl;
+    document.getElementById('voice-sub').textContent=sub;
+    if (state==='error') {
+      const b=document.getElementById('mic-btn');
+      b.className='mic-btn muted'; b.textContent='🚫';
+    }
+  }
+
+  /* ── Socket ─────────────────────────────── */
+  function initSocket() {
+    socket = io();
+
+    socket.on('room-created', async ({ roomCode:code, videoId }) => {
+      roomCode=code; isHost=true;
+      showRoom(); setTopCode(code);
+      setRole('host','You control playback for the room.');
+      setSyncDot('live','Room ready');
+
+      const strip = document.getElementById('invite-strip');
+      strip.style.display='flex';
+      const codeEl = document.getElementById('invite-code');
+      codeEl.textContent=code;
+      codeEl.classList.remove('flash'); void codeEl.offsetWidth; codeEl.classList.add('flash');
+      document.getElementById('guests-badge').style.display='flex';
+
+      await loadYouTubeAPI();
+      await createYouTubePlayer(videoId, 0, false);
+      await initVoice();
+    });
+
+    socket.on('guest-joined', ({ guestCount:gc }) => {
+      document.getElementById('guest-count').textContent=gc;
+    });
+
+    socket.on('room-joined', async ({ videoId, timestamp, isPlaying }) => {
+      isHost=false; showRoom();
+      setRole('guest','Playback syncs with the room.');
+      setSyncDot('live','Synced');
+      await loadYouTubeAPI();
+      await createYouTubePlayer(videoId, timestamp, isPlaying);
+      await initVoice();
+    });
+
+    socket.on('host-peer-id', ({ peerId }) => {
+      if (!isHost) setTimeout(()=>callHost(peerId), 800);
+    });
+
+    socket.on('join-error', ({ message }) => showErr('err-join', message));
+
+    socket.on('sync-event', ({ type, timestamp }) => {
+      if (!player) return;
+      isSyncing=true;
+      const drift = Math.abs(player.getCurrentTime()-timestamp);
+      if (drift>1.5) player.seekTo(timestamp,true);
+      if (type==='play')  { player.playVideo();  document.getElementById('btn-play-pause').textContent='⏸'; }
+      if (type==='pause') { player.pauseVideo(); document.getElementById('btn-play-pause').textContent='▶'; }
+      if (type==='seek')  { player.seekTo(timestamp,true); }
+      flashSync();
+      setTimeout(()=>{ isSyncing=false; }, 600);
+    });
+
+    socket.on('receive-emoji', ({ emoji }) => spawnEmojiFloat(emoji, false));
+
+    socket.on('change-video', ({ videoId }) => {
+      if (!player) return;
+      isSyncing=true;
+      player.loadVideoById(videoId, 0);
+      document.getElementById('btn-play-pause').textContent='⏸';
+      flashSync();
+      setTimeout(()=>{ isSyncing=false; }, 800);
+    });
+
+    socket.on('host-disconnected', () => {
+      setSyncDot('off','Host left');
+      alert('The host left. Session ended.');
+    });
+  }
+
+  /* ── Create / Join ──────────────────────── */
+  async function createRoom() {
+    const videoId = extractVideoId(document.getElementById('input-url').value.trim());
+    if (!videoId) { showErr('err-create','Doesn\'t look like a valid YouTube URL.'); return; }
+    clearErr('err-create'); initSocket();
+    socket.emit('create-room', { videoId });
+  }
+
+  function joinRoom() {
+    const code = document.getElementById('input-code').value.trim().toUpperCase();
+    if (code.length<4) { showErr('err-join','Enter the 6-character room code.'); return; }
+    clearErr('err-join'); initSocket();
+    socket.emit('join-room', { roomCode:code });
+  }
+
+  function copyCode() {
+    navigator.clipboard.writeText(roomCode).then(()=>{
+      const btn=document.getElementById('copy-btn');
+      btn.textContent='✓ Copied!'; btn.classList.add('copied');
+      setTimeout(()=>{ btn.textContent='Copy Code'; btn.classList.remove('copied'); }, 2200);
+    });
+  }
+
+  /* ── UI Helpers ─────────────────────────── */
+  function showRoom() {
+    document.getElementById('page-landing').classList.add('hidden');
+    document.getElementById('page-room').classList.remove('hidden');
+  }
+  function setTopCode(code) {
+    document.getElementById('topbar-code').textContent=code;
+    document.getElementById('code-chip').style.display='block';
+  }
+  function setRole(role,hint) {
+    const p=document.getElementById('role-pill');
+    p.className='role-pill '+role;
+    p.textContent=role==='host'?'Host':'Guest';
+    document.getElementById('role-hint').textContent=hint;
+  }
+  function setSyncDot(state,label) {
+    document.getElementById('sync-dot').className='sync-dot'+(state==='live'?' live':'');
+    document.getElementById('sync-label').textContent=label;
+  }
+  function flashSync() {
+    const box=document.getElementById('player-box');
+    box.classList.add('glow'); setTimeout(()=>box.classList.remove('glow'),500);
+    const dot=document.getElementById('sync-dot');
+    dot.style.background=var_gold; setTimeout(()=>{ dot.style.background=''; },240);
+  }
+  const var_gold = '#E1C179';
+
+  function showErr(id,msg)  { const e=document.getElementById(id); e.textContent=msg; e.classList.add('show'); }
+  function clearErr(id)     { const e=document.getElementById(id); e.textContent='';  e.classList.remove('show'); }
+
+  /* ── Keyboard ───────────────────────────── */
+  document.addEventListener('DOMContentLoaded',()=>{
+    document.getElementById('input-url').addEventListener('keydown',  e=>{ if(e.key==='Enter') createRoom(); });
+    document.getElementById('input-code').addEventListener('keydown', e=>{ if(e.key==='Enter') joinRoom(); });
+    document.getElementById('next-url').addEventListener('keydown',   e=>{ if(e.key==='Enter') loadNextVideo(); });
+    document.addEventListener('keydown', e=>{
+      if(e.code==='Space' && e.target.tagName!=='INPUT') { e.preventDefault(); controlPlayPause(); }
+    });
+  });
+</script>
+</body>
+</html>
