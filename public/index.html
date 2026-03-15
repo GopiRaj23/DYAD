@@ -1599,13 +1599,13 @@ function loadYTAPI(){
     document.head.appendChild(s);window.onYouTubeIframeAPIReady=res;
   });
 }
-function createPlayer(videoId,startTime){
+function createPlayer(videoId,startTime,autoplay){
   return new Promise(res=>{
     document.getElementById('yt-player').innerHTML='';
     isSyncing=true; // prevent onPlayerState from emitting sync-events while loading
     player=new YT.Player('yt-player',{
       videoId,
-      playerVars:{autoplay:0,start:Math.floor(startTime||0),rel:0,modestbranding:1,playsinline:1,origin:window.location.origin},
+      playerVars:{autoplay:autoplay?1:0,start:Math.floor(startTime||0),rel:0,modestbranding:1,playsinline:1,origin:window.location.origin},
       events:{
         onReady:e=>{
           if(startTime>1)e.target.seekTo(startTime,true);
@@ -2338,28 +2338,28 @@ function initSocket(){
     if(mode==='game'){
       document.getElementById('no-video').style.display='flex';ytLoaded=false;switchTab('ink');
     }else if(videoId){
-      // CRITICAL FIX #7: Load player, seek to host position, then prompt user to tap-to-play
-      // (browser autoplay policy blocks programmatic play after async chain; tap-to-play always works)
+      // Load player at host's current position; use YT-native autoplay if host is playing
       ytLoaded=true;
-      
       document.getElementById('no-video').style.display='none';
       // Store host state so doSyncPlay() seeks accurately
       latestHostTimestamp=timestamp||0;
       latestHostPlaying=isPlaying;
       latestHostReceived=Date.now()/1000;
       await loadYTAPI();
-      // Create player seeked to host position (cued but not playing)
-      await createPlayer(videoId, latestHostTimestamp);
+      // Create player at host timestamp — autoplay:1 if host is playing (YT-native autoplay
+      // is more likely to succeed on mobile than a post-creation playVideo() call)
+      await createPlayer(videoId, latestHostTimestamp, !!isPlaying);
       // Refresh received-time after async load — keeps elapsed estimate in doSyncPlay accurate
       latestHostReceived=Date.now()/1000;
       switchTab('watch');
       if(isPlaying){
-        // Try auto-play first; fall back to sync-prompt if browser blocks it
+        // Belt-and-suspenders: also call playVideo() programmatically in case YT autoplay
+        // didn't fire; then check state and fall back to sync-prompt if browser blocked it
         isSyncing=true;
         const elapsed=latestHostPlaying?(Date.now()/1000-latestHostReceived):0;
         const target=Math.max(0,latestHostTimestamp+elapsed);
         player.seekTo(target,true);
-        player.playVideo();
+        try{player.playVideo();}catch(e){}
         guestHasInteracted=true;
         setTimeout(()=>{
           const st=player.getPlayerState();
@@ -2373,7 +2373,7 @@ function initSocket(){
           isSyncing=false;
         },1200);
       }else{
-        // v22 Fix #4: Host is paused — explicitly force-pause after creation.
+        // CRITICAL SAFEGUARD: Host is paused — explicitly force-pause after creation.
         // YouTube iframe can auto-play briefly despite autoplay:0; this kills it immediately.
         isSyncing=true;
         try{player.pauseVideo();}catch(e){}
@@ -2468,7 +2468,7 @@ function initSocket(){
     if(Date.now()-lastLocalSyncAt<3500)return;
     if(Math.abs(player.getCurrentTime()-timestamp)>0.5){isSyncing=true;player.seekTo(timestamp,true);flashSync();setTimeout(()=>{isSyncing=false;},400);}
     const myPlay=player.getPlayerState()===YT.PlayerState.PLAYING;
-    if(isPlaying&&!myPlay&&guestHasInteracted){isSyncing=true;player.playVideo();setTimeout(forceRepaint,100);setTimeout(()=>{isSyncing=false;},400);}
+    if(isPlaying&&!myPlay){isSyncing=true;player.playVideo();guestHasInteracted=true;setTimeout(forceRepaint,100);setTimeout(()=>{isSyncing=false;},400);}
     else if(!isPlaying&&myPlay){isSyncing=true;player.pauseVideo();setTimeout(()=>{isSyncing=false;},400);}
   });
   socket.on('mention',({fromName,channel})=>{
@@ -2494,11 +2494,22 @@ function initSocket(){
     // Destroy old player so new video always starts clean
     if(player){try{player.destroy();}catch(e){}player=null;}
     if(!window.YT||!window.YT.Player)await loadYTAPI();
-    await createPlayer(videoId,latestHostTimestamp);
+    await createPlayer(videoId,latestHostTimestamp,!!isPlaying);
     switchTab('watch');removePendingDot();
     if(isPlaying){
-      // Show sync-prompt — user tap required due to browser autoplay policy
-      const sp=document.getElementById('sync-prompt');if(sp)sp.classList.add('show');
+      // Try auto-play; fall back to sync-prompt if browser blocks it
+      isSyncing=true;
+      try{player.playVideo();}catch(e){}
+      guestHasInteracted=true;
+      setTimeout(()=>{
+        const st=player.getPlayerState();
+        if(st!==YT.PlayerState.PLAYING&&st!==YT.PlayerState.BUFFERING){
+          const sp=document.getElementById('sync-prompt');if(sp)sp.classList.add('show');
+        }else{
+          toast('✓ New video playing in sync!');
+        }
+        isSyncing=false;
+      },1200);
     }else{
       toast('✓ New video loaded!');
     }
