@@ -1676,6 +1676,9 @@ function startSeekPoll(){
   _lastPollTs=player?player.getCurrentTime():0;
   _seekPollInt=setInterval(()=>{
     if(!player||player.getPlayerState()!==YT.PlayerState.PAUSED){stopSeekPoll();return;}
+    // v33: Skip while syncing or during heartbeat protection window — avoids
+    // re-detecting a heartbeat/sync correction as a user scrub (feedback loop)
+    if(isSyncing||Date.now()-lastLocalSyncAt<2000){_lastPollTs=player.getCurrentTime();return;}
     const t=player.getCurrentTime();
     if(Math.abs(t-_lastPollTs)>1){
       if(socket&&roomCode){
@@ -2382,20 +2385,35 @@ function initSocket(){
       try{
         await loadYTAPI();
         // v28: Always autoplay on join so YouTube renders a frame (prevents black canvas).
-        // v32: When host is paused, mute before autoplay so mobile browsers allow it
-        // (muted autoplay is permitted on mobile). Unmute after pausing so audio works on next play.
+        // v32: Mute before autoplay so mobile browsers allow it.
+        // v33: Don't pauseVideo() immediately — wait for PLAYING state first so a frame
+        // is rendered (prevents black screen on mobile). If autoplay never fires (mobile
+        // blocked it), the YouTube poster/thumbnail shows instead of black.
         const hostPaused=!latestHostPlaying;
         await createPlayer(videoId, latestHostTimestamp, true, hostPaused);
         latestHostReceived=Date.now()/1000;
         guestHasInteracted=true;
-        // v25 Critical safeguard: enforce paused state if host is not playing
-        // v28: This now also prevents autoplay from continuing when host had paused
         if(hostPaused && player){
           isSyncing=true;
-          player.pauseVideo();
-          // v32: unmute after pausing — audio will work when user plays next
-          player.unMute();
-          setTimeout(()=>{isSyncing=false;},400);
+          lastLocalSyncAt=Date.now();
+          const _pauseOnce=function(ev){
+            if(ev.data===YT.PlayerState.PLAYING){
+              player.removeEventListener('onStateChange',_pauseOnce);
+              clearTimeout(_pauseFallback);
+              player.pauseVideo();
+              player.unMute();
+              player.seekTo(latestHostTimestamp,true);
+              startSeekPoll();
+              setTimeout(()=>{isSyncing=false;},400);
+            }
+          };
+          player.addEventListener('onStateChange',_pauseOnce);
+          // Fallback: if autoplay never reaches PLAYING (mobile blocked), release after 3s
+          const _pauseFallback=setTimeout(()=>{
+            player.removeEventListener('onStateChange',_pauseOnce);
+            player.unMute();
+            isSyncing=false;
+          },3000);
         }
         switchTab('watch');
       }catch(err){
@@ -2465,7 +2483,10 @@ function initSocket(){
     // v28: Also protect receiver from heartbeat snap-back after applying a sync-event
     lastLocalSyncAt=Date.now();
     _videoEnded=false; // v28: clear ended flag — someone explicitly played/paused
-    if(Math.abs(player.getCurrentTime()-adjTs)>0.3)player.seekTo(adjTs,true);
+    // v33: Always apply seek for explicit seek events; use threshold only for play/pause
+    if(type==='seek'||Math.abs(player.getCurrentTime()-adjTs)>0.3)player.seekTo(adjTs,true);
+    // v33: Update seek poll baseline so it doesn't re-detect this as a user scrub
+    if(type==='seek')_lastPollTs=adjTs;
     if(type==='play'){
       player.playVideo();guestHasInteracted=true;
       setTimeout(forceRepaint,100);setTimeout(forceRepaint,400);
