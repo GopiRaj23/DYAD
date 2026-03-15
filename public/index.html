@@ -1324,7 +1324,7 @@ function removePendingDot(){const d=document.getElementById('watch-pending-dot')
 
 /* ══════ GAME CONFIG ══════ */
 function openGCM(){
-  document.getElementById('lb-overlay').classList.remove('open');
+  document.getElementById('ov-lobby').classList.add('hidden');
   gameRounds=1;document.getElementById('rounds-val').textContent=1;
   document.getElementById('gcm-bg').classList.add('open');
 }
