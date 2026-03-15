@@ -1592,6 +1592,7 @@ function loadYTAPI(){
 function createPlayer(videoId,startTime,autoplay){
   return new Promise(res=>{
     document.getElementById('yt-player').innerHTML='';
+    _videoEnded=false; // v28: reset ended flag for new video
     isSyncing=true; // prevent onPlayerState from emitting sync-events while loading
     player=new YT.Player('yt-player',{
       videoId,
@@ -1618,9 +1619,20 @@ function createPlayer(videoId,startTime,autoplay){
     });
   });
 }
+let _videoEnded=false; // v28: tracks ENDED state to prevent heartbeat loop
 function onPlayerState(ev){
   if(isSyncing)return;
+  // v28: Track ENDED state — prevents heartbeat from restarting finished video
+  if(ev.data===YT.PlayerState.ENDED){
+    _videoEnded=true;
+    if(socket&&roomCode){
+      socket.emit('sync-event',{type:'pause',timestamp:player.getCurrentTime(),sentAt:Date.now()});
+      lastLocalSyncAt=Date.now();
+    }
+    return;
+  }
   if(ev.data===YT.PlayerState.PLAYING||ev.data===YT.PlayerState.PAUSED){
+    _videoEnded=false; // v28: clear ended flag on any play/pause
     // v26: Debounce rapid state changes from YouTube during mobile seek (PAUSED→PLAYING).
     // Without this, seeking emits TWO sync-events: pause@old_pos then play@new_pos,
     // causing other clients to jump back then forward ("re-run" artifact).
@@ -2318,6 +2330,8 @@ function initSocket(){
   socket.on('guest-joined',({guestCount:gc,guestName,participants})=>{
     participantCount=gc+1;
     if(participants)setMembers(participants);
+    // v28: Re-check lobby gating so Start Game button appears when 2+ players
+    checkLobbyMinPlayers();
     showChatNotif(`👋 ${guestName} joined`);
     sysChat('watch',`👋 ${guestName} joined`);
   });
@@ -2344,10 +2358,13 @@ function initSocket(){
       latestHostReceived=Date.now()/1000;
       try{
         await loadYTAPI();
-        await createPlayer(videoId, latestHostTimestamp, !!isPlaying);
+        // v28: Always autoplay on join so YouTube renders a frame (prevents black canvas).
+        // If host was paused, we pause immediately after in the safeguard below.
+        await createPlayer(videoId, latestHostTimestamp, true);
         latestHostReceived=Date.now()/1000;
         guestHasInteracted=true;
         // v25 Critical safeguard: enforce paused state if host is not playing
+        // v28: This now also prevents autoplay from continuing when host had paused
         if(!latestHostPlaying && player){
           isSyncing=true;
           player.pauseVideo();
@@ -2418,6 +2435,9 @@ function initSocket(){
     // Long isSyncing window (1200ms) — prevents onPlayerState re-emit and
     // blocks the next heartbeat from overriding this state while YT resolves the command
     isSyncing=true;
+    // v28: Also protect receiver from heartbeat snap-back after applying a sync-event
+    lastLocalSyncAt=Date.now();
+    _videoEnded=false; // v28: clear ended flag — someone explicitly played/paused
     if(Math.abs(player.getCurrentTime()-adjTs)>0.3)player.seekTo(adjTs,true);
     if(type==='play'){
       player.playVideo();guestHasInteracted=true;
@@ -2444,7 +2464,9 @@ function initSocket(){
     if(!player||isHost)return;
     // Skip all state changes while isSyncing — prevents heartbeat overriding a just-applied sync-event
     if(isSyncing)return;
-    // v22 Fix #1: Skip corrections if WE recently emitted a sync-event (seek/play/pause).
+    // v28: Skip heartbeat corrections when video has ended — prevents infinite restart loop
+    if(_videoEnded)return;
+    // v22 Fix #1: Skip corrections if WE recently emitted or received a sync-event (seek/play/pause).
     // The heartbeat may carry a stale host position that hasn't settled to our seek target yet.
     if(Date.now()-lastLocalSyncAt<3500)return;
     if(Math.abs(player.getCurrentTime()-timestamp)>0.5){isSyncing=true;player.seekTo(timestamp,true);flashSync();setTimeout(()=>{isSyncing=false;},400);}
@@ -2490,8 +2512,12 @@ function initSocket(){
   // change-video: server now emits watch-sync directly to recipients; sender handles locally in loadNextVideo()
 
   socket.on('chat-message',({text,username,channel,fromSelf_id})=>{
-    // For scribble (guess) channel: show self's echoed guesses (wrong ones). For watch: suppress self (already shown locally).
-    if(channel!=='scribble'&&fromSelf_id===socket.id)return;
+    // v28: Suppress self-echo for ALL channels — sendChat already appends locally.
+    // Exception: scribble wrong-guess echoes (scribbleActive && guesser) were NOT locally appended.
+    if(fromSelf_id===socket.id){
+      const isWrongGuessEcho=channel==='scribble'&&scribbleActive&&!isDrawer;
+      if(!isWrongGuessEcho)return; // already shown locally via sendChat
+    }
     const ch=channel==='scribble'?'ink':'watch';
     appendChat({ch,text,username,self:(fromSelf_id===socket.id)});
   });
