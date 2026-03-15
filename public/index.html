@@ -2338,49 +2338,25 @@ function initSocket(){
     if(mode==='game'){
       document.getElementById('no-video').style.display='flex';ytLoaded=false;switchTab('ink');
     }else if(videoId){
-      // Load player at host's current position; use YT-native autoplay if host is playing
+      // Load player at host's current position — mirrors original working logic:
+      // pass isPlaying to createPlayer so YT-native autoplay:1 handles playback.
       ytLoaded=true;
       document.getElementById('no-video').style.display='none';
-      // Store host state so doSyncPlay() seeks accurately
       latestHostTimestamp=timestamp||0;
       latestHostPlaying=isPlaying;
       latestHostReceived=Date.now()/1000;
-      await loadYTAPI();
-      // Create player at host timestamp — autoplay:1 if host is playing (YT-native autoplay
-      // is more likely to succeed on mobile than a post-creation playVideo() call)
-      await createPlayer(videoId, latestHostTimestamp, !!isPlaying);
-      // Refresh received-time after async load — keeps elapsed estimate in doSyncPlay accurate
-      latestHostReceived=Date.now()/1000;
-      switchTab('watch');
-      if(isPlaying){
-        // Belt-and-suspenders: also call playVideo() programmatically in case YT autoplay
-        // didn't fire; then check state and fall back to sync-prompt if browser blocked it
-        isSyncing=true;
-        const elapsed=latestHostPlaying?(Date.now()/1000-latestHostReceived):0;
-        const target=Math.max(0,latestHostTimestamp+elapsed);
-        player.seekTo(target,true);
-        try{player.playVideo();}catch(e){}
+      try{
+        await loadYTAPI();
+        await createPlayer(videoId, latestHostTimestamp, !!isPlaying);
+        latestHostReceived=Date.now()/1000;
         guestHasInteracted=true;
-        setTimeout(()=>{
-          const st=player.getPlayerState();
-          if(st!==YT.PlayerState.PLAYING&&st!==YT.PlayerState.BUFFERING){
-            // Autoplay blocked by browser — show manual sync prompt as fallback
-            const sp=document.getElementById('sync-prompt');
-            if(sp)sp.classList.add('show');
-          }else{
-            toast('✓ Playing in sync with host!');
-          }
-          isSyncing=false;
-        },1200);
-      }else{
-        // CRITICAL SAFEGUARD: Host is paused — explicitly force-pause after creation.
-        // YouTube iframe can auto-play briefly despite autoplay:0; this kills it immediately.
-        isSyncing=true;
-        try{player.pauseVideo();}catch(e){}
-        // Also re-pause after a short delay to catch any deferred auto-play from YouTube
-        setTimeout(()=>{try{player.pauseVideo();}catch(e){}},300);
-        setTimeout(()=>{try{player.pauseVideo();}catch(e){}},800);
-        setTimeout(()=>{isSyncing=false;},1500);
+        switchTab('watch');
+      }catch(err){
+        // If player creation fails, show error instead of silent "No video yet"
+        console.error('Player creation failed:',err);
+        toast('⚠️ Video failed to load — try refreshing');
+        document.getElementById('no-video').style.display='flex';
+        switchTab('watch');
       }
     }else{
       document.getElementById('no-video').style.display='flex';switchTab('watch');
@@ -2489,29 +2465,19 @@ function initSocket(){
     if(!videoId)return;
     ytLoaded=true;
     document.getElementById('no-video').style.display='none';
-    
     latestHostTimestamp=timestamp||0;latestHostPlaying=isPlaying;latestHostReceived=Date.now()/1000;
     // Destroy old player so new video always starts clean
     if(player){try{player.destroy();}catch(e){}player=null;}
-    if(!window.YT||!window.YT.Player)await loadYTAPI();
-    await createPlayer(videoId,latestHostTimestamp,!!isPlaying);
-    switchTab('watch');removePendingDot();
-    if(isPlaying){
-      // Try auto-play; fall back to sync-prompt if browser blocks it
-      isSyncing=true;
-      try{player.playVideo();}catch(e){}
+    try{
+      if(!window.YT||!window.YT.Player)await loadYTAPI();
+      await createPlayer(videoId,latestHostTimestamp,!!isPlaying);
       guestHasInteracted=true;
-      setTimeout(()=>{
-        const st=player.getPlayerState();
-        if(st!==YT.PlayerState.PLAYING&&st!==YT.PlayerState.BUFFERING){
-          const sp=document.getElementById('sync-prompt');if(sp)sp.classList.add('show');
-        }else{
-          toast('✓ New video playing in sync!');
-        }
-        isSyncing=false;
-      },1200);
-    }else{
-      toast('✓ New video loaded!');
+      switchTab('watch');removePendingDot();
+      toast(isPlaying?'✓ New video playing!':'✓ New video loaded!');
+    }catch(err){
+      console.error('watch-sync player creation failed:',err);
+      toast('⚠️ Video failed to load — try refreshing');
+      document.getElementById('no-video').style.display='flex';
     }
   });
   // change-video: server now emits watch-sync directly to recipients; sender handles locally in loadNextVideo()
