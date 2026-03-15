@@ -281,8 +281,9 @@ io.on('connection', (socket) => {
     if (!socket.roomCode) return;
     const room = rooms.get(socket.roomCode);
     if (!room) return;
-    room.videoId = videoId; room.timestamp = 0; room.isPlaying = true; room.lastUpdate = Date.now();
-    socket.to(socket.roomCode).emit('watch-sync', { videoId, timestamp: 0, isPlaying: true });
+    room.videoId = videoId; room.timestamp = 0; room.isPlaying = false; room.lastUpdate = Date.now();
+    // v25: Video loads paused — the loader's play action sends a sync-event with the real state
+    socket.to(socket.roomCode).emit('watch-sync', { videoId, timestamp: 0, isPlaying: false });
     // v23: Notify all users (including sender) via chat
     const msg = { text: `📺 ${socket.username || 'Someone'} loaded a new video`, username: '⚙️ System', channel: 'watch', fromSelf_id: null };
     io.to(socket.roomCode).emit('chat-message', msg);
