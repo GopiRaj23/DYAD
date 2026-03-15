@@ -1644,6 +1644,7 @@ function onPlayerState(ev){
       const t=player.getCurrentTime();
       if(state===YT.PlayerState.PLAYING){
         guestHasInteracted=true;
+        stopSeekPoll(); // v30: stop seek polling when playing
         if(socket&&roomCode){
           socket.emit('sync-event',{type:'play',timestamp:t,sentAt:Date.now()});
           lastLocalSyncAt=Date.now(); // protect from heartbeat snap-back
@@ -1651,6 +1652,7 @@ function onPlayerState(ev){
         // v22 Fix #9: clear pause banner when local user plays
         clearPauseBanner();
       }else if(state===YT.PlayerState.PAUSED){
+        startSeekPoll(); // v30: start seek polling when paused
         if(socket&&roomCode){
           socket.emit('sync-event',{type:'pause',timestamp:t,sentAt:Date.now()});
           lastLocalSyncAt=Date.now(); // protect from heartbeat snap-back
@@ -1664,6 +1666,24 @@ function onPlayerState(ev){
 function extractVid(url){const m=(url||'').match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/);return m?m[1]:null;}
 function startHeartbeat(){if(!isHost||heartbeatInt)return;heartbeatInt=setInterval(()=>{if(!player||!socket)return;socket.emit('heartbeat',{timestamp:player.getCurrentTime(),isPlaying:player.getPlayerState()===YT.PlayerState.PLAYING});},1000);}
 function stopHeartbeat(){if(heartbeatInt){clearInterval(heartbeatInt);heartbeatInt=null;}}
+// v30: Seek-while-paused detector — polls position to detect manual scrubbing
+let _seekPollInt=null,_lastPollTs=0;
+function startSeekPoll(){
+  stopSeekPoll();
+  _lastPollTs=player?player.getCurrentTime():0;
+  _seekPollInt=setInterval(()=>{
+    if(!player||player.getPlayerState()!==YT.PlayerState.PAUSED){stopSeekPoll();return;}
+    const t=player.getCurrentTime();
+    if(Math.abs(t-_lastPollTs)>1){
+      if(socket&&roomCode){
+        socket.emit('sync-event',{type:'seek',timestamp:t,sentAt:Date.now()});
+        lastLocalSyncAt=Date.now();
+      }
+    }
+    _lastPollTs=t;
+  },500);
+}
+function stopSeekPoll(){if(_seekPollInt){clearInterval(_seekPollInt);_seekPollInt=null;}}
 function playPause(){
   if(!player)return;
   const playing=player.getPlayerState()===YT.PlayerState.PLAYING;
@@ -2453,6 +2473,10 @@ function initSocket(){
         // v22 Fix #9: show persistent pause banner until play
         showPauseBanner(username);
       }
+    }
+    // v30: Handle seek-while-paused — just move position, don't change play/pause state
+    if(type==='seek'){
+      if(username)showChatNotif(`⏩ ${username} seeked`);
     }
     flashSync();
     setTimeout(()=>{isSyncing=false;},1200);
