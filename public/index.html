@@ -376,7 +376,7 @@ button{
 .clear-btn{background:rgba(224,112,112,.08);border-color:rgba(224,112,112,.22);color:var(--red);}
 .clear-btn:hover{background:rgba(224,112,112,.18);}
 
-.scribble-wrap{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden;background:var(--bg);}
+.scribble-wrap{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden;background:transparent;}
 /* canvas-area sized explicitly by resizeCanvas() to maintain 4:3 aspect ratio */
 .canvas-area{flex-shrink:0;position:relative;border-radius:var(--r);overflow:hidden;border:1px solid var(--border);background:#fff;}
 .scribble-canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;user-select:none;}
@@ -2227,35 +2227,45 @@ function clearPauseBanner(){
   if(el)el.remove();
 }
 
-/* Fix 6: Keyboard-aware layout — when keyboard opens in portrait, shrink room-right
-   so the video/canvas (room-left) stays fully visible at the top.
-   Strategy: room-left is flex:0 0 auto (sized by content), so we clamp room-right's
-   max-height to whatever space is left after the keyboard appears. */
+/* Fix 6: Keyboard-aware layout — when keyboard opens in portrait, constrain
+   page-room to visualViewport height and freeze room-left so the video/canvas
+   stays fully visible.  The keyboard only overlays the chat (room-right).
+   Works identically for Watch (auto-height video) and InkMind (JS-set canvas). */
+let _preKbdRlH=0; // room-left height captured before keyboard opens
 function applyKeyboardLayout(){
   if(!window.visualViewport)return;
   const portrait=window.innerWidth<640&&window.innerHeight>window.innerWidth;
+  const pr=document.getElementById('page-room');
   const rr=document.getElementById('room-right');
   const rl=document.getElementById('room-left');
-  if(!rr||!rl)return;
-  if(!portrait){rr.style.maxHeight='';return;}
+  if(!rr||!rl||!pr)return;
+  if(!portrait){rr.style.maxHeight='';rl.style.height='';pr.style.height='';return;}
   const vvh=Math.round(window.visualViewport.height);
   const kbdH=Math.max(0,window.innerHeight-vvh);
   if(kbdH>80){
-    // Keyboard open — lock room-left to its current pixel height so canvas/video stays visible
-    const rlH=rl.offsetHeight;
-    rl.style.flex='0 0 '+rlH+'px';
+    // Keyboard open — lock page-room to visible viewport so nothing hides behind kbd
+    pr.style.height=vvh+'px';
+    // Freeze room-left at its pre-keyboard height so canvas doesn't shrink/shift
+    if(!_preKbdRlH)_preKbdRlH=rl.offsetHeight;
+    rl.style.flex='0 0 '+_preKbdRlH+'px';
+    rl.style.height=_preKbdRlH+'px';
+    // room-right gets whatever space remains
     const topbarH=document.querySelector('.topbar')?.offsetHeight||48;
     const ribbonH=document.querySelector('.mode-ribbon')?.offsetHeight||40;
     const dockH=document.querySelector('.dock')?.offsetHeight||52;
-    const usedH=topbarH+ribbonH+rlH+dockH;
-    const remaining=Math.max(vvh-usedH,80); // at least 80px for chat
+    const usedH=topbarH+ribbonH+_preKbdRlH+dockH;
+    const remaining=Math.max(vvh-usedH,80);
     rr.style.maxHeight=remaining+'px';
-    document.getElementById('page-room').classList.add('kbd-open');
+    pr.classList.add('kbd-open');
   }else{
+    // Keyboard closed — restore everything
+    _preKbdRlH=0;
     rr.style.maxHeight='';
-    // Restore room-left flex per current tab
+    rl.style.height='';
+    pr.style.height='';
+    pr.classList.remove('kbd-open');
+    // Re-apply tab-specific room-left sizing
     adjustMobileLayout(currentTab);
-    document.getElementById('page-room').classList.remove('kbd-open');
     if(currentTab==='ink')requestAnimationFrame(()=>requestAnimationFrame(resizeCanvas));
   }
 }
