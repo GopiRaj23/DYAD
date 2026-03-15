@@ -1,1027 +1,2671 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#080F10" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <title>DYAD — Watch Together</title>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
+<meta name="theme-color" content="#080F10"/>
+<title>DYAD — Shared Moments</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant:wght@400;600;700&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<script src="/socket.io/socket.io.js"></script>
+<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+<style>
+/* ══ TOKENS ══ */
+:root{
+  --bg:#080F10;--bg-deep:#050b0c;--surface:#0D2A30;--surface2:#103F47;--surface3:#1A5561;
+  --border:rgba(225,193,121,.10);--border-hi:rgba(225,193,121,.24);--border-dim:rgba(255,255,255,.05);
+  --gold:#E1C179;--gold-deep:#C4A55A;--gold-pale:#F0D99A;
+  --teal:#1A5561;--green:#5ECBA1;--red:#E07070;
+  --text:#F0EAD6;--text-dim:#7A9DA3;--text-faint:#4A6E75;
+  --font-brand:'Cormorant',serif;--font-ui:'Outfit',sans-serif;
+  --r:14px;--r-sm:8px;--r-xs:5px;
+  --topbar-h:52px;--ribbon-h:44px;--dock-h:68px;
+  --chat-w:500px; /* consistent chat panel width */
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{height:100%;height:-webkit-fill-available;}
+body{
+  font-family:var(--font-ui);background:var(--bg);color:var(--text);
+  height:100%;height:-webkit-fill-available;
+  overflow:hidden;-webkit-font-smoothing:antialiased;
+}
+/* grain */
+body::after{content:'';position:fixed;inset:0;
+  background:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.025'/%3E%3C/svg%3E");
+  pointer-events:none;z-index:9999;}
+.hidden{display:none!important;}
 
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet" />
+/* ══ GLOBAL INPUTS / BUTTONS ══ */
+input[type="text"]{
+  width:100%;background:var(--bg);border:1px solid rgba(16,63,71,.9);
+  border-radius:var(--r-sm);padding:.72rem .9rem;font-family:var(--font-ui);
+  font-size:.9rem;color:var(--text);outline:none;margin-bottom:.68rem;
+  transition:border-color .2s;-webkit-appearance:none;
+}
+input[type="text"]::placeholder{color:var(--text-faint);}
+input[type="text"]:focus{border-color:var(--gold-deep);box-shadow:0 0 0 3px rgba(225,193,121,.08);}
+button{
+  font-family:var(--font-ui);font-weight:500;font-size:.78rem;
+  letter-spacing:.1em;text-transform:uppercase;border:none;
+  border-radius:var(--r-sm);padding:.82rem 1.2rem;cursor:pointer;
+  transition:transform .14s,box-shadow .14s,background .2s,opacity .2s;
+  -webkit-tap-highlight-color:transparent;touch-action:manipulation;
+}
+.btn-primary{width:100%;background:linear-gradient(135deg,var(--gold),var(--gold-deep));color:var(--bg-deep);font-weight:600;box-shadow:0 4px 18px rgba(225,193,121,.2);}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 6px 22px rgba(225,193,121,.32);}
+.btn-secondary{width:100%;background:transparent;border:1px solid var(--border-hi);color:var(--gold);}
+.btn-secondary:hover{background:rgba(225,193,121,.06);}
+.msg-err{font-size:.73rem;color:var(--red);background:rgba(224,112,112,.08);border:1px solid rgba(224,112,112,.2);border-radius:var(--r-sm);padding:.44rem .76rem;margin-bottom:.64rem;display:none;}
+.msg-err.show{display:block;}
+@keyframes riseIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
 
-  <script src="/socket.io/socket.io.js"></script>
-  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+/* ══ LANDING ══ */
+#page-landing{
+  min-height:100svh;overflow-y:auto;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  padding:1.5rem 1.2rem calc(2rem + env(safe-area-inset-bottom,0px));position:relative;
+}
+.bg-layer{position:fixed;border-radius:50%;pointer-events:none;filter:blur(90px);}
+.bg-1{width:520px;height:520px;background:radial-gradient(circle,rgba(16,63,71,.48),transparent 70%);top:-240px;right:-140px;animation:bgDrift 18s ease-in-out infinite;}
+.bg-2{width:440px;height:440px;background:radial-gradient(circle,rgba(26,85,97,.3),transparent 70%);bottom:-160px;left:-110px;animation:bgDrift 22s ease-in-out infinite reverse;animation-delay:-9s;}
+.bg-3{width:280px;height:280px;background:radial-gradient(circle,rgba(225,193,121,.06),transparent 70%);top:38%;left:34%;animation:bgDrift 28s ease-in-out infinite;animation-delay:-14s;}
+@keyframes bgDrift{0%,100%{transform:translate(0,0)scale(1)}33%{transform:translate(24px,-30px)scale(1.04)}66%{transform:translate(-14px,18px)scale(.97)}}
+.logo-block{text-align:center;margin-bottom:1.6rem;animation:riseIn .6s cubic-bezier(.22,1,.36,1) both;}
+.logo-mark{display:inline-flex;align-items:center;justify-content:center;width:60px;height:60px;border-radius:17px;margin-bottom:.8rem;background:linear-gradient(145deg,var(--surface2),var(--teal));border:1px solid var(--border-hi);position:relative;box-shadow:0 0 0 1px var(--border),0 8px 30px rgba(0,0,0,.5),inset 0 1px 0 rgba(225,193,121,.12);}
+.logo-mark::before,.logo-mark::after{content:'';position:absolute;width:18px;height:18px;border-radius:50%;border:2.5px solid var(--gold);}
+.logo-mark::before{left:12px;top:50%;transform:translateY(-50%);}
+.logo-mark::after{right:12px;top:50%;transform:translateY(-50%);opacity:.5;}
+.logo-shine{position:absolute;inset:0;border-radius:inherit;background:linear-gradient(110deg,transparent 35%,rgba(225,193,121,.18) 50%,transparent 65%);background-size:220% 100%;animation:goldSweep 3.5s ease-in-out infinite;}
+@keyframes goldSweep{0%{background-position:220% 0}100%{background-position:-220% 0}}
+.brand-name{font-family:var(--font-brand);font-size:clamp(2.6rem,8vw,4.2rem);font-weight:700;letter-spacing:.26em;color:var(--gold);line-height:1;}
+.tagline{font-size:.68rem;letter-spacing:.28em;text-transform:uppercase;color:var(--text-dim);margin-top:.4rem;}
+.landing-inner{width:100%;max-width:680px;}
+.mode-toggle{display:flex;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:.28rem;gap:.28rem;margin-bottom:.6rem;animation:riseIn .5s cubic-bezier(.22,1,.36,1) both;}
+.mode-btn{flex:1;padding:.56rem .9rem;font-size:.76rem;font-weight:600;letter-spacing:.09em;text-transform:uppercase;border:none;border-radius:var(--r-sm);background:transparent;color:var(--text-dim);cursor:pointer;transition:all .22s;}
+.mode-btn.active{background:linear-gradient(135deg,var(--gold),var(--gold-deep));color:var(--bg-deep);box-shadow:0 2px 10px rgba(225,193,121,.28);}
+.mode-btn:not(.active):hover{color:var(--text);background:var(--surface2);}
+.username-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:1.1rem 1.3rem;margin-bottom:.6rem;animation:riseIn .5s cubic-bezier(.22,1,.36,1) both;animation-delay:.07s;}
+.card-label{font-size:.62rem;letter-spacing:.2em;text-transform:uppercase;color:var(--text-dim);margin-bottom:.72rem;display:flex;align-items:center;gap:.65rem;}
+.card-label::before,.card-label::after{content:'';flex:1;height:1px;background:var(--border-dim);}
+.username-row{display:flex;gap:.45rem;}
+.username-row input{flex:1;margin-bottom:0;}
+.randomize-btn{background:var(--surface2);border:1px solid var(--border-hi);color:var(--gold);font-size:.7rem;font-weight:600;border-radius:var(--r-sm);padding:.72rem .85rem;cursor:pointer;white-space:nowrap;transition:all .2s;flex-shrink:0;}
+.randomize-btn:hover{background:var(--teal);}
+.cards-row{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;animation:riseIn .5s cubic-bezier(.22,1,.36,1) both;animation-delay:.14s;}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:1.2rem;position:relative;transition:border-color .3s;}
+.card:focus-within{border-color:var(--border-hi);}
+.input-code{font-family:var(--font-brand);font-size:1.9rem;text-align:center;letter-spacing:.32em;font-weight:700;color:var(--gold);}
+@media(max-width:500px){.cards-row{grid-template-columns:1fr;}}
 
-  <style>
-    /* ══════════════════════════════════════════
-       DESIGN TOKENS — DYAD PREMIUM PALETTE
-       Primary:  #103F47  Deep Teal
-       Accent:   #E1C179  Champagne Gold
-    ══════════════════════════════════════════ */
-    :root {
-      /* Backgrounds */
-      --bg:          #080F10;   /* near-black, teal undertone */
-      --bg-deep:     #050b0c;   /* deepest layer */
-      --surface:     #0D2A30;   /* card surface */
-      --surface2:    #103F47;   /* elevated surface (brand teal) */
-      --surface3:    #1A5561;   /* hover / active surface */
+/* ══ QUICK-JOIN OVERLAY (shared-link landing) ══ */
+#quick-join{
+  position:fixed;inset:0;background:var(--bg);z-index:800;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:2rem 1.5rem;gap:1.5rem;
+}
+.qj-logo{font-family:var(--font-brand);font-size:clamp(2.4rem,7vw,3.8rem);font-weight:700;letter-spacing:.24em;color:var(--gold);}
+.qj-invite{background:var(--surface);border:1px solid var(--border-hi);border-radius:var(--r);padding:1.4rem 1.8rem;width:min(380px,92vw);text-align:center;}
+.qj-label{font-size:.62rem;letter-spacing:.2em;text-transform:uppercase;color:var(--text-dim);margin-bottom:.5rem;}
+.qj-code{font-family:var(--font-brand);font-size:2.4rem;font-weight:700;letter-spacing:.38em;color:var(--gold);margin-bottom:1rem;}
+.qj-name{margin-bottom:.7rem;}
+.qj-name input{margin-bottom:0;}
+.qj-btn{width:100%;background:linear-gradient(135deg,var(--gold),var(--gold-deep));color:var(--bg-deep);font-weight:700;font-size:.82rem;padding:.9rem;}
+.qj-btn:hover{transform:translateY(-1px);}
+.qj-err{display:none;font-size:.72rem;color:var(--red);margin-top:.5rem;}
+.qj-err.show{display:block;}
 
-      /* Borders */
-      --border:      rgba(225, 193, 121, 0.10);
-      --border-hi:   rgba(225, 193, 121, 0.24);
-      --border-dim:  rgba(255, 255, 255, 0.05);
+/* ══ TOASTS ══ */
+.toast-container{position:fixed;top:calc(var(--topbar-h) + 6px);left:50%;transform:translateX(-50%);z-index:1000;display:flex;flex-direction:column;align-items:center;gap:.35rem;pointer-events:none;}
+.toast{background:var(--surface2);border:1px solid var(--border-hi);border-radius:100px;padding:.34rem .9rem;font-size:.72rem;color:var(--gold);letter-spacing:.06em;white-space:nowrap;animation:toastIn .3s cubic-bezier(.22,1,.36,1) both;}
+.toast.out{animation:toastOut .35s ease forwards;}
+@keyframes toastIn{from{opacity:0;transform:translateY(-12px)scale(.9)}to{opacity:1;transform:translateY(0)scale(1)}}
+@keyframes toastOut{from{opacity:1}to{opacity:0;transform:translateY(-8px)scale(.93)}}
 
-      /* Accent — Champagne Gold family */
-      --gold:        #E1C179;   /* primary accent */
-      --gold-deep:   #C4A55A;   /* darker gold for gradients */
-      --gold-pale:   #F0D99A;   /* highlight / hover */
-      --gold-glow:   rgba(225, 193, 121, 0.18);
-      --gold-subtle: rgba(225, 193, 121, 0.08);
+/* ══ WATCH INVITE CARD ══ */
+.watch-invite-card{
+  position:fixed;bottom:calc(var(--dock-h) + 14px);right:14px;z-index:500;
+  width:min(276px,calc(100vw - 28px));
+  background:var(--surface);border:1px solid var(--border-hi);border-radius:var(--r);
+  padding:.95rem 1rem;box-shadow:0 8px 36px rgba(0,0,0,.6);
+  transform:translateX(310px);transition:transform .38s cubic-bezier(.22,1,.36,1);
+}
+.watch-invite-card.show{transform:translateX(0);}
+.wic-bar{height:3px;border-radius:3px;background:var(--surface3);margin-bottom:.7rem;overflow:hidden;}
+.wic-fill{height:100%;background:var(--gold);border-radius:3px;}
+.wic-row{display:flex;align-items:flex-start;gap:.65rem;margin-bottom:.7rem;}
+.wic-icon{font-size:1.7rem;flex-shrink:0;}
+.wic-title{font-size:.8rem;font-weight:600;color:var(--text);line-height:1.4;}
+.wic-sub{font-size:.66rem;color:var(--text-dim);margin-top:.18rem;}
+.wic-btns{display:flex;gap:.45rem;}
+.wic-yes{flex:1;background:linear-gradient(135deg,var(--gold),var(--gold-deep));color:var(--bg-deep);font-size:.68rem;font-weight:700;padding:.48rem;border-radius:var(--r-sm);}
+.wic-no{flex:1;background:transparent;border:1px solid var(--border-hi);color:var(--text-dim);font-size:.68rem;padding:.48rem;border-radius:var(--r-sm);}
 
-      /* Teal family */
-      --teal:        #103F47;
-      --teal-mid:    #1A5561;
-      --teal-bright: #2B7A8A;   /* active states */
-      --teal-mist:   rgba(16, 63, 71, 0.6);
+/* ══ GAME CONFIG MODAL ══ */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.72);backdrop-filter:blur(8px);z-index:600;display:none;align-items:center;justify-content:center;}
+.modal-bg.open{display:flex;}
+.gcm{background:var(--surface);border:1px solid var(--border-hi);border-radius:var(--r);padding:1.9rem 1.8rem 1.5rem;width:min(340px,88vw);box-shadow:0 18px 55px rgba(0,0,0,.7);}
+.gcm-title{font-family:var(--font-brand);font-size:1.75rem;font-weight:700;color:var(--gold);text-align:center;margin-bottom:.25rem;}
+.gcm-sub{font-size:.7rem;color:var(--text-dim);text-align:center;margin-bottom:1.4rem;}
+.gcm-label{font-size:.61rem;letter-spacing:.18em;text-transform:uppercase;color:var(--text-dim);display:block;text-align:center;margin-bottom:.65rem;}
+/* Single-line centered stepper */
+.rounds-stepper{display:flex;align-items:center;justify-content:center;gap:1.1rem;}
+.rounds-adj{width:36px;height:36px;border-radius:9px;background:var(--surface2);border:1px solid var(--border-hi);color:var(--gold);font-size:1.2rem;display:flex;align-items:center;justify-content:center;cursor:pointer;font-weight:700;transition:background .2s;padding:0;}
+.rounds-adj:hover{background:var(--teal);}
+.rounds-val{font-family:var(--font-brand);font-size:2.2rem;font-weight:700;color:var(--text);min-width:2.5ch;text-align:center;}
+.gcm-btns{display:flex;gap:.45rem;margin-top:1.4rem;}
+.gcm-start{flex:2;background:linear-gradient(135deg,var(--gold),var(--gold-deep));color:var(--bg-deep);font-weight:700;padding:.88rem;}
+.gcm-start:hover{transform:translateY(-1px);}
+.gcm-cancel{flex:1;background:transparent;border:1px solid var(--border);color:var(--text-dim);padding:.88rem;}
+.gcm-cancel:hover{color:var(--text);border-color:var(--border-hi);}
 
-      /* Text */
-      --text:        #F0EAD6;   /* warm ivory — not cold white */
-      --text-dim:    #7A9DA3;   /* muted teal-grey */
-      --text-faint:  #4A6E75;   /* very muted */
+/* ══ LEADERBOARD ══ */
+.lb-overlay{position:fixed;inset:0;z-index:700;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.85);backdrop-filter:blur(12px);}
+.lb-overlay.open{display:flex;}
+.lb-card{background:var(--surface);border:1px solid var(--border-hi);border-radius:var(--r);padding:1.8rem 1.8rem 1.5rem;width:min(420px,90vw);box-shadow:0 22px 70px rgba(0,0,0,.8);animation:riseIn .45s cubic-bezier(.22,1,.36,1) both;max-height:90vh;overflow-y:auto;}
+.lb-badge{font-size:3.2rem;display:block;text-align:center;margin-bottom:.4rem;animation:trophySpin 1.1s cubic-bezier(.22,1,.36,1) both;}
+@keyframes trophySpin{from{transform:scale(0)rotate(-25deg)}to{transform:scale(1)rotate(0)}}
+.lb-title{font-family:var(--font-brand);font-size:2rem;font-weight:700;color:var(--gold);text-align:center;margin-bottom:.25rem;}
+.lb-sub{font-size:.7rem;color:var(--text-dim);text-align:center;margin-bottom:1.3rem;}
+.lb-list{display:flex;flex-direction:column;gap:.45rem;margin-bottom:1.3rem;}
+.lb-row{display:flex;align-items:center;gap:.7rem;padding:.65rem .85rem;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--bg);}
+.lb-row.gold-row{background:linear-gradient(135deg,rgba(225,193,121,.12),rgba(196,165,90,.06));border-color:rgba(225,193,121,.28);}
+.lb-rank{font-size:1.3rem;flex-shrink:0;}
+.lb-name{flex:1;font-size:.82rem;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.lb-pts{font-family:var(--font-brand);font-size:1.25rem;font-weight:700;color:var(--gold);flex-shrink:0;}
+.lb-tag{font-size:.59rem;color:var(--text-faint);display:block;}
+.lb-btns{display:flex;gap:.45rem;}
+.lb-new{flex:2;background:linear-gradient(135deg,var(--gold),var(--gold-deep));color:var(--bg-deep);font-weight:700;padding:.86rem;}
+.lb-new:hover{transform:translateY(-1px);}
+.lb-close{flex:1;background:transparent;border:1px solid var(--border);color:var(--text-dim);padding:.86rem;}
 
-      /* Status */
-      --green:       #5ECBA1;   /* softer emerald — fits the palette */
-      --red:         #E07070;
+/* ══ ROOM PAGE ══ */
+#page-room{
+  position:fixed;inset:0;
+  padding-top:env(safe-area-inset-top,0px);
+  display:flex;flex-direction:column;
+  background:var(--bg);
+}
 
-      /* Typography */
-      --font-brand:  'Cormorant', serif;
-      --font-ui:     'Outfit', sans-serif;
+/* TOPBAR */
+.topbar{
+  height:var(--topbar-h);flex-shrink:0;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 1rem;border-bottom:1px solid var(--border);
+  background:rgba(8,15,16,.96);backdrop-filter:blur(20px);z-index:100;
+}
+.topbar-left{display:flex;align-items:center;gap:.7rem;}
+.topbar-brand{font-family:var(--font-brand);font-size:1.4rem;font-weight:700;letter-spacing:.2em;color:var(--gold);}
+/* Username badge - always visible (legacy, not shown in topbar now) */
+.user-badge{display:none;}
+.topbar-right{display:flex;align-items:center;gap:.45rem;}
+.code-chip{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r-xs);padding:.24rem .58rem;
+  font-size:.61rem;letter-spacing:.1em;color:var(--text-dim);
+  cursor:pointer;transition:border-color .2s,color .2s;user-select:none;
+}
+.code-chip:hover{border-color:var(--border-hi);color:var(--gold);}
+.code-chip.copied{border-color:var(--green);color:var(--green);}
 
-      /* Shape */
-      --r:           14px;
-      --r-sm:        8px;
-      --r-xs:        5px;
-    }
+/* RIBBON */
+.mode-ribbon{
+  height:var(--ribbon-h);flex-shrink:0;
+  display:flex;align-items:center;
+  border-bottom:1px solid var(--border);background:var(--surface);overflow:hidden;
+}
+.ribbon-btn{
+  display:flex;align-items:center;gap:.4rem;
+  padding:0 1rem;height:100%;
+  font-size:.71rem;font-weight:600;letter-spacing:.09em;text-transform:uppercase;
+  border:none;border-right:1px solid var(--border);background:transparent;
+  color:var(--text-dim);cursor:pointer;transition:all .2s;white-space:nowrap;flex-shrink:0;
+}
+.ribbon-btn.active{color:var(--gold);background:rgba(225,193,121,.05);border-bottom:2px solid var(--gold);}
+.ribbon-btn:hover:not(.active){color:var(--text);background:rgba(255,255,255,.03);}
+.yt-tray{flex:1;display:none;align-items:center;gap:.45rem;padding:0 .7rem;overflow:hidden;}
+.yt-tray.open{display:flex;}
+.yt-tray input{flex:1;margin-bottom:0;padding:.38rem .65rem;font-size:.76rem;height:30px;}
+.yt-load{background:linear-gradient(135deg,var(--gold),var(--gold-deep));color:var(--bg-deep);font-size:.64rem;font-weight:700;border-radius:var(--r-xs);padding:.38rem .8rem;white-space:nowrap;flex-shrink:0;}
 
-    /* ══════════════════════════════════════════
-       RESET + BASE
-    ══════════════════════════════════════════ */
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html { height: 100%; }
-    body {
-      font-family: var(--font-ui);
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100%;
-      overflow-x: hidden;
-      -webkit-font-smoothing: antialiased;
-    }
+/* ROOM BODY */
+.room-body{flex:1;min-height:0;display:flex;overflow:hidden;}
+.room-left{
+  flex:1;min-width:0;display:flex;flex-direction:column;
+  overflow:hidden;border-right:1px solid var(--border);
+}
+.room-right{
+  width:var(--chat-w);flex-shrink:0;display:flex;flex-direction:column;
+  overflow:hidden;position:relative;
+}
+/* Fix 3: when keyboard opens on mobile, page-room height is set by JS to visualViewport.height
+   so room-left stays fixed and keyboard just overlays the bottom of room-right */
+#page-room.kbd-open{
+  /* JS sets explicit height; this ensures the dock doesn't escape */
+  overflow:hidden;
+}
+/* Fix 2: Chat notification pill — centered over the chat-messages area */
+.chat-notif{
+  position:absolute;top:40%;left:50%;
+  transform:translateX(-50%) translateY(-6px);
+  z-index:60;pointer-events:none;
+  background:rgba(8,15,16,.94);backdrop-filter:blur(14px);
+  border:1px solid var(--border-hi);border-radius:100px;
+  padding:.36rem 1rem;font-size:.74rem;color:var(--gold);
+  letter-spacing:.04em;white-space:nowrap;
+  box-shadow:0 4px 18px rgba(0,0,0,.55);
+  opacity:0;transition:opacity .22s ease,transform .24s cubic-bezier(.22,1,.36,1);
+}
+.chat-notif.show{opacity:1;transform:translateX(-50%) translateY(0);}
+.chat-notif.out{opacity:0;transform:translateX(-50%) translateY(-10px);}
+.tab-content{flex:1;display:none;flex-direction:column;overflow:hidden;padding:.65rem .7rem .65rem .9rem;gap:.45rem;}
+.tab-content.active{display:flex;}
 
-    /* Grain texture */
-    body::after {
-      content: '';
-      position: fixed; inset: 0;
-      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.028'/%3E%3C/svg%3E");
-      pointer-events: none; z-index: 9999;
-    }
+/* Invite strip */
+/* invite-strip removed in v9 */
 
-    .hidden { display: none !important; }
+/* Player */
+.player-wrap{flex:1;min-height:0;display:flex;flex-direction:column;}
+.player-box{
+  width:100%;height:100%;border-radius:var(--r);overflow:hidden;background:#000;
+  border:1px solid var(--border);position:relative;
+  box-shadow:0 2px 0 rgba(225,193,121,.06),0 14px 44px rgba(0,0,0,.6);
+  transition:box-shadow .4s;
+}
+.player-box.glow{box-shadow:0 2px 0 rgba(225,193,121,.18),0 14px 44px rgba(0,0,0,.6),0 0 40px 5px rgba(225,193,121,.1);}
+.player-box iframe,.player-box #yt-player{position:absolute;inset:0;width:100%;height:100%;border:0;
+  /* Fix 3: pin to GPU layer permanently — prevents compositor GC that causes black screen */
+  transform:translate3d(0,0,0);will-change:transform;
+  -webkit-backface-visibility:hidden;backface-visibility:hidden;}
+.emoji-float{position:absolute;font-size:2.6rem;pointer-events:none;z-index:50;user-select:none;
+  filter:drop-shadow(0 3px 9px rgba(0,0,0,.6));animation:floatUp 2.6s cubic-bezier(.22,1,.36,1) forwards;}
+@keyframes floatUp{0%{opacity:0;transform:translateY(0)scale(.3)}14%{opacity:1;transform:translateY(-18px)scale(1.25)}50%{opacity:1;transform:translateY(-66px)scale(1)}100%{opacity:0;transform:translateY(-145px)scale(.8)}}
+.no-video{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:.8rem;text-align:center;padding:1.5rem;}
+.no-video h3{font-family:var(--font-brand);font-size:1.4rem;color:var(--gold);font-weight:600;}
+.no-video p{font-size:.76rem;color:var(--text-dim);max-width:240px;line-height:1.55;}
+/* #7 Sync-now overlay for guests joining a live video */
+.sync-prompt{
+  position:absolute;inset:0;z-index:20;
+  display:none;align-items:center;justify-content:center;
+  background:rgba(8,15,16,.78);backdrop-filter:blur(8px);
+  flex-direction:column;gap:.9rem;
+}
+.sync-prompt.show{display:flex;}
+.sync-prompt-label{font-size:.72rem;color:var(--text-dim);letter-spacing:.05em;text-transform:uppercase;}
+.sync-play-btn{
+  background:linear-gradient(135deg,var(--gold),var(--gold-deep));
+  color:var(--bg-deep);font-size:1.05rem;font-weight:800;
+  border:none;border-radius:50px;padding:1.1rem 2.6rem;
+  cursor:pointer;letter-spacing:.06em;text-transform:uppercase;
+  box-shadow:0 6px 32px rgba(225,193,121,.5);
+  transition:transform .14s,box-shadow .14s;
+  display:flex;align-items:center;gap:.6rem;
+}
+.sync-play-btn:hover{transform:scale(1.07);box-shadow:0 8px 36px rgba(225,193,121,.65);}
+.sync-play-btn:active{transform:scale(.95);}
 
-    /* ══════════════════════════════════════════
-       LANDING PAGE
-    ══════════════════════════════════════════ */
-    #page-landing {
-      min-height: 100svh;
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      padding: 1.5rem;
-      padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
-      position: relative; overflow: hidden;
-    }
+.watch-pending-badge{display:none;position:absolute;top:-3px;right:-3px;width:9px;height:9px;border-radius:50%;background:var(--gold);border:2px solid var(--bg);}
+.watch-pending-badge.show{display:block;}
 
-    /* Teal depth layers in background */
-    .bg-layer {
-      position: fixed; border-radius: 50%; pointer-events: none;
-      filter: blur(90px); opacity: 1;
-    }
-    .bg-1 {
-      width: 600px; height: 600px;
-      background: radial-gradient(circle, rgba(16,63,71,0.55) 0%, transparent 68%);
-      top: -280px; right: -180px;
-      animation: bgDrift 18s ease-in-out infinite;
-    }
-    .bg-2 {
-      width: 500px; height: 500px;
-      background: radial-gradient(circle, rgba(26,85,97,0.35) 0%, transparent 68%);
-      bottom: -200px; left: -140px;
-      animation: bgDrift 22s ease-in-out infinite reverse;
-      animation-delay: -9s;
-    }
-    .bg-3 {
-      width: 320px; height: 320px;
-      background: radial-gradient(circle, rgba(225,193,121,0.07) 0%, transparent 68%);
-      top: 38%; left: 32%;
-      animation: bgDrift 28s ease-in-out infinite;
-      animation-delay: -14s;
-    }
-    @keyframes bgDrift {
-      0%,100% { transform: translate(0,0) scale(1); }
-      33%      { transform: translate(24px,-32px) scale(1.04); }
-      66%      { transform: translate(-16px,20px) scale(0.97); }
-    }
+/* ══ INKMIND CANVAS ══ */
+.game-info-bar{
+  display:flex;align-items:center;justify-content:space-between;
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:var(--r-sm);padding:.42rem .8rem;
+  flex-shrink:0;gap:.7rem;
+}
+.game-status{font-size:.71rem;color:var(--text-dim);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.game-status strong{color:var(--text);}
+.round-counter{font-size:.6rem;color:var(--text-faint);flex-shrink:0;white-space:nowrap;}
+.word-display{font-family:var(--font-brand);font-size:clamp(1.2rem,3vw,1.5rem);letter-spacing:.22em;color:var(--gold);font-weight:600;}
+.word-blanks{font-family:var(--font-brand);font-size:clamp(1.2rem,3vw,1.5rem);letter-spacing:.3em;color:var(--text-dim);}
+.word-blanks span.revealed{color:var(--green);animation:letterPop .35s cubic-bezier(.22,1,.36,1) both;}
+@keyframes letterPop{from{transform:scale(1.8);opacity:0}to{transform:scale(1);opacity:1}}
 
-    /* ── DYAD Logo ── */
-    .logo-block {
-      text-align: center; margin-bottom: 3rem;
-      animation: riseIn 0.7s cubic-bezier(0.22,1,0.36,1) both;
-    }
+/* Hint popup — floats left of the word blanks */
+#word-area{position:relative;display:flex;align-items:center;}
+.hint-pop{
+  position:absolute;right:calc(100% + 8px);top:50%;transform:translateY(-50%);
+  background:var(--surface2);border:1px solid rgba(225,193,121,.4);
+  color:var(--gold);font-size:.58rem;font-weight:700;letter-spacing:.04em;
+  border-radius:100px;padding:.2rem .55rem;white-space:nowrap;
+  box-shadow:0 3px 12px rgba(0,0,0,.4);
+  opacity:0;pointer-events:none;
+  animation:hintPop .4s cubic-bezier(.22,1,.36,1) forwards;
+}
+.hint-pop::after{
+  content:'';position:absolute;left:100%;top:50%;transform:translateY(-50%);
+  border:4px solid transparent;border-left-color:rgba(225,193,121,.4);
+}
+@keyframes hintPop{
+  0%{opacity:0;transform:translateY(-50%) scale(.8);}
+  60%{opacity:1;transform:translateY(-50%) scale(1.06);}
+  100%{opacity:1;transform:translateY(-50%) scale(1);}
+}
+.timer-ring{position:relative;width:38px;height:38px;flex-shrink:0;}
+.timer-svg{transform:rotate(-90deg);}
+.timer-track{fill:none;stroke:var(--surface3);stroke-width:3;}
+.timer-fill{fill:none;stroke:var(--gold);stroke-width:3;stroke-linecap:round;stroke-dasharray:107;stroke-dashoffset:0;transition:stroke-dashoffset 1s linear,stroke .4s;}
+.timer-fill.urgent{stroke:var(--red);}
+.timer-text{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:600;color:var(--gold);}
+.timer-text.urgent{color:var(--red);}
 
-    .logo-mark {
-      display: inline-flex; align-items: center; justify-content: center;
-      width: 80px; height: 80px; border-radius: 22px; margin-bottom: 1.5rem;
-      background: linear-gradient(145deg, var(--surface2), var(--teal-mid));
-      border: 1px solid var(--border-hi);
-      position: relative;
-      box-shadow:
-        0 0 0 1px var(--border),
-        0 12px 40px rgba(0,0,0,0.5),
-        inset 0 1px 0 rgba(225,193,121,0.15);
-      animation: markPulse 4s ease-in-out infinite;
-    }
+/* Live score bar */
+.live-score-bar{display:none;align-items:center;gap:.36rem;flex-shrink:0;flex-wrap:wrap;}
+.live-score-bar.show{display:flex;}
+.score-pill{font-size:.6rem;font-weight:600;background:var(--surface2);border:1px solid var(--border);border-radius:100px;padding:.16rem .5rem;color:var(--text-dim);white-space:nowrap;}
+.score-pill.top{border-color:rgba(225,193,121,.32);color:var(--gold);}
+@keyframes scoreFlash{0%{background:rgba(94,203,161,.3);transform:scale(1.18)}100%{background:var(--surface2);transform:scale(1)}}
 
-    /* Two interlocked circles — symbolising "dyad" (two as one) */
-    .logo-mark::before,
-    .logo-mark::after {
-      content: '';
-      position: absolute;
-      width: 26px; height: 26px;
-      border-radius: 50%;
-      border: 2.5px solid var(--gold);
-      opacity: 0.9;
-    }
-    .logo-mark::before { left: 18px; top: 50%; transform: translateY(-50%); }
-    .logo-mark::after  { right: 18px; top: 50%; transform: translateY(-50%); opacity: 0.55; }
+/* Toolbar */
+.canvas-toolbar{
+  display:none;align-items:center;justify-content:center;
+  gap:.35rem;flex-shrink:0;flex-wrap:wrap;padding:.2rem 0;
+}
+.toolbar-label{font-size:.57rem;letter-spacing:.12em;text-transform:uppercase;color:var(--text-faint);}
+.color-swatch{width:22px;height:22px;border-radius:50%;border:2px solid transparent;cursor:pointer;transition:transform .12s;flex-shrink:0;}
+.color-swatch:hover{transform:scale(1.16);}
+.color-swatch.selected{border-color:var(--gold);transform:scale(1.14);}
+.brush-slider{-webkit-appearance:none;appearance:none;width:66px;height:3px;border-radius:3px;background:var(--surface3);outline:none;cursor:pointer;}
+.brush-slider::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;border-radius:50%;background:var(--gold);}
+.canvas-act{font-size:.61rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;border-radius:var(--r-xs);padding:.3rem .62rem;cursor:pointer;transition:all .18s;border:1px solid;}
+.undo-btn{background:rgba(94,203,161,.08);border-color:rgba(94,203,161,.22);color:var(--green);}
+.undo-btn:hover{background:rgba(94,203,161,.18);}
+.clear-btn{background:rgba(224,112,112,.08);border-color:rgba(224,112,112,.22);color:var(--red);}
+.clear-btn:hover{background:rgba(224,112,112,.18);}
 
-    /* Gold shimmer sweep */
-    .logo-mark-shine {
-      position: absolute; inset: 0; border-radius: inherit;
-      background: linear-gradient(110deg, transparent 35%, rgba(225,193,121,0.22) 50%, transparent 65%);
-      background-size: 220% 100%;
-      animation: goldSweep 3.5s ease-in-out infinite;
-    }
+.scribble-wrap{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden;background:var(--bg);}
+/* canvas-area sized explicitly by resizeCanvas() to maintain 4:3 aspect ratio */
+.canvas-area{flex-shrink:0;position:relative;border-radius:var(--r);overflow:hidden;border:1px solid var(--border);background:#fff;}
+.scribble-canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;user-select:none;}
+.scribble-canvas.drawing{cursor:crosshair;}
 
-    @keyframes goldSweep {
-      0%   { background-position: 220% 0; }
-      100% { background-position: -220% 0; }
-    }
-    @keyframes markPulse {
-      0%,100% { box-shadow: 0 0 0 1px var(--border), 0 12px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(225,193,121,0.15); }
-      50%      { box-shadow: 0 0 0 1px var(--border-hi), 0 12px 60px rgba(0,0,0,0.6), 0 0 32px rgba(225,193,121,0.1), inset 0 1px 0 rgba(225,193,121,0.2); }
-    }
+/* Overlays */
+.sc-overlay{
+  position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:.85rem;background:rgba(8,15,16,.9);backdrop-filter:blur(10px);border-radius:var(--r);
+  z-index:10;text-align:center;padding:1.4rem;
+}
+.sc-overlay h2{font-family:var(--font-brand);font-size:clamp(1.4rem,4vw,1.7rem);font-weight:600;color:var(--gold);}
+.sc-overlay p{font-size:.75rem;color:var(--text-dim);max-width:270px;line-height:1.55;}
+.ov-btn{background:linear-gradient(135deg,var(--gold),var(--gold-deep));color:var(--bg-deep);font-size:.76rem;font-weight:700;letter-spacing:.08em;border:none;border-radius:var(--r-sm);padding:.78rem 1.9rem;cursor:pointer;box-shadow:0 4px 16px rgba(225,193,121,.28);transition:transform .14s;}
+.ov-btn:hover{transform:translateY(-2px);}
+.ov-btn.sec{background:transparent;border:1px solid var(--border-hi);color:var(--text-dim);box-shadow:none;}
+.ov-btn.sec:hover{color:var(--text);}
+.word-choices-grid{display:grid;grid-template-columns:1fr 1fr;gap:.55rem;width:100%;max-width:320px;}
+.word-choice-btn{background:var(--surface2);border:1px solid var(--border-hi);color:var(--text);font-family:var(--font-brand);font-size:clamp(1rem,3vw,1.15rem);font-weight:600;letter-spacing:.07em;border-radius:var(--r-sm);padding:.66rem .4rem;cursor:pointer;transition:all .18s;}
+.word-choice-btn:hover{background:linear-gradient(135deg,var(--gold),var(--gold-deep));color:var(--bg-deep);border-color:var(--gold);transform:scale(1.04);}
+.choice-countdown{font-family:var(--font-brand);font-size:2.8rem;font-weight:700;color:var(--gold-pale);line-height:1;}
+.choice-countdown.urgent{color:var(--red);}
+.round-result-big{font-family:var(--font-brand);font-size:clamp(1.5rem,4vw,1.9rem);font-weight:700;color:var(--gold);}
+.round-word-reveal{font-size:.84rem;color:var(--text-dim);}
+.round-scores-mini{display:flex;flex-direction:column;gap:.28rem;width:100%;max-width:230px;}
+.rsm-row{display:flex;align-items:center;justify-content:space-between;font-size:.66rem;color:var(--text-dim);gap:.45rem;}
+.rsm-row.leader{color:var(--gold);}
+.rsm-name{flex:1;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.rsm-score{font-weight:600;font-size:.72rem;}
 
-    .brand-name {
-      font-family: var(--font-brand);
-      font-size: clamp(3.2rem, 10vw, 5rem);
-      font-weight: 700;
-      letter-spacing: 0.25em;
-      color: var(--gold);
-      line-height: 1;
-      text-shadow: 0 0 60px rgba(225,193,121,0.2);
-    }
+/* ══ CHAT ══ */
+.chat-panel{flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0;}
+.chat-header{display:flex;align-items:center;justify-content:space-between;padding:.46rem .82rem;border-bottom:1px solid var(--border);background:var(--surface2);flex-shrink:0;}
+.chat-hdr-title{font-size:.64rem;letter-spacing:.17em;text-transform:uppercase;color:var(--text-dim);}
+/* Landscape hint — only shown on portrait mobile */
+.landscape-hint{
+  display:none;
+  text-align:center;font-size:.58rem;color:var(--text-faint);
+  padding:.28rem .5rem;letter-spacing:.04em;flex-shrink:0;
+}
+@media (max-width:639px) and (orientation:portrait){
+  .landscape-hint{display:block;}
+}
 
-    .tagline {
-      font-size: 0.73rem; letter-spacing: 0.28em; text-transform: uppercase;
-      color: var(--text-dim); margin-top: 0.6rem; font-weight: 300;
-    }
+/* unread-star removed — notifications handled via chat-notif pill */
+.chat-messages{flex:1;overflow-y:auto;padding:.55rem .75rem;display:flex;flex-direction:column;gap:.34rem;scroll-behavior:smooth;min-height:0;}
+.chat-messages::-webkit-scrollbar{width:3px;}
+.chat-messages::-webkit-scrollbar-thumb{background:var(--surface3);border-radius:3px;}
+.chat-msg{display:flex;flex-direction:column;gap:.05rem;max-width:86%;}
+.chat-msg.self{align-self:flex-end;align-items:flex-end;}
+.chat-msg.other{align-self:flex-start;align-items:flex-start;}
+.msg-name{font-size:.55rem;letter-spacing:.06em;color:var(--text-faint);padding:0 .32rem;}
+.msg-bubble{padding:.32rem .62rem;border-radius:11px;font-size:.74rem;line-height:1.44;word-break:break-word;}
+.chat-msg.self  .msg-bubble{background:var(--surface2);color:var(--text);border:1px solid var(--border-hi);border-bottom-right-radius:3px;}
+.chat-msg.other .msg-bubble{background:var(--teal);color:var(--text);border:1px solid rgba(255,255,255,.06);border-bottom-left-radius:3px;}
+.msg-bubble.correct-guess{background:rgba(94,203,161,.14);border-color:rgba(94,203,161,.32);color:var(--green);}
+.system-msg{text-align:center;font-size:.57rem;color:var(--text-faint);padding:.08rem 0;letter-spacing:.04em;}
+.typing-ind{display:none;align-items:center;gap:.28rem;font-size:.6rem;color:var(--text-dim);padding:.08rem .32rem;min-height:17px;flex-shrink:0;}
+.typing-ind.show{display:flex;}
+.typing-dots{display:flex;gap:3px;}
+.typing-dots span{width:4px;height:4px;border-radius:50%;background:var(--text-dim);animation:typBounce .9s ease-in-out infinite;}
+.typing-dots span:nth-child(2){animation-delay:.15s}.typing-dots span:nth-child(3){animation-delay:.3s}
+@keyframes typBounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-4px)}}
+.quick-emojis{display:none;grid-template-columns:repeat(auto-fill,minmax(28px,1fr));gap:.18rem;padding:.32rem .55rem;border-top:1px solid var(--border);background:var(--surface);flex-shrink:0;justify-items:center;}
+.quick-emojis.open{display:grid;}
+.q-emoji{background:none;border:none;font-size:1rem;cursor:pointer;padding:.12rem;border-radius:5px;letter-spacing:0;text-transform:none;transition:transform .1s;}
+.q-emoji:hover{transform:scale(1.22);}
+.chat-input-row{display:flex;align-items:center;gap:.28rem;padding:.42rem .52rem;border-top:1px solid var(--border);background:var(--bg);flex-shrink:0;}
+.chat-input-row input[type="text"]{flex:1;margin-bottom:0;padding:.38rem .6rem;font-size:.74rem;background:var(--surface);border-color:var(--border);}
+.emoji-ico{background:none;border:none;font-size:.98rem;padding:.2rem;cursor:pointer;color:var(--text-dim);letter-spacing:0;text-transform:none;}
+.chat-send{background:var(--surface2);border:1px solid var(--border-hi);color:var(--gold);font-size:.62rem;font-weight:600;letter-spacing:.07em;text-transform:uppercase;border-radius:var(--r-sm);padding:.38rem .68rem;cursor:pointer;white-space:nowrap;transition:all .18s;flex-shrink:0;}
+.chat-send:hover{background:var(--teal);}
 
-    /* ── Landing Cards ── */
-    .landing-inner { width: 100%; max-width: 420px; }
+/* System event message — highlighted system-msg variant */
+.system-event{color:var(--green)!important;background:rgba(94,203,161,.07);border-radius:var(--r-xs);padding:.2rem .5rem;margin:.06rem 0;}
 
-    .card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--r);
-      padding: 1.75rem;
-      margin-bottom: 0.7rem;
-      transition: border-color 0.3s, box-shadow 0.3s;
-      animation: riseIn 0.6s cubic-bezier(0.22,1,0.36,1) both;
-      position: relative; overflow: hidden;
-    }
-    .card:nth-child(1) { animation-delay: 0.1s; }
-    .card:nth-child(2) { animation-delay: 0.2s; }
+/* ══ DOCK ══ */
+.dock{
+  flex-shrink:0;
+  height:calc(var(--dock-h) + env(safe-area-inset-bottom,0px));
+  background:rgba(8,15,16,.97);backdrop-filter:blur(22px);
+  border-top:1px solid var(--border);
+  padding:0 1rem;
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  position:relative;
+}
+.dock::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(225,193,121,.28) 50%,transparent);}
+.dock-inner{height:100%;display:flex;align-items:center;justify-content:space-between;gap:.6rem;}
+.dock-left-group{display:flex;align-items:center;gap:.5rem;flex-shrink:0;}
+.dock-right-group{display:flex;align-items:center;gap:.4rem;flex-shrink:0;margin-left:auto;}
 
-    /* Subtle teal sheen on the top edge */
-    .card::before {
-      content: '';
-      position: absolute; top: 0; left: 10%; right: 10%; height: 1px;
-      background: linear-gradient(90deg, transparent, rgba(225,193,121,0.3), transparent);
-      opacity: 0; transition: opacity 0.3s;
-    }
-    .card:focus-within { border-color: var(--border-hi); box-shadow: 0 0 0 4px rgba(225,193,121,0.06), 0 8px 32px rgba(0,0,0,0.3); }
-    .card:focus-within::before { opacity: 1; }
+/* Voice group */
+.dock-voice{display:flex;align-items:center;gap:.4rem;flex-shrink:0;}
+.mic-btn{
+  width:40px;height:40px;border-radius:50%;border:none;
+  display:flex;align-items:center;justify-content:center;
+  font-size:1rem;cursor:pointer;flex-shrink:0;
+  background:rgba(16,63,71,.9);
+  box-shadow:0 0 0 1px rgba(94,203,161,.3),inset 0 1px 0 rgba(255,255,255,.06);
+  transition:transform .14s,box-shadow .3s;
+}
+.mic-btn.muted{background:rgba(40,14,14,.9);box-shadow:0 0 0 1px rgba(224,112,112,.3);}
+.mic-btn.pending{animation:breathe 1.6s ease-in-out infinite;}
+@keyframes breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+.mic-btn:active{transform:scale(.9);}
+.vol-wrap{display:flex;flex-direction:column;align-items:center;gap:1px;flex-shrink:0;}
+.vol-label{font-size:.44rem;color:var(--text-faint);letter-spacing:.05em;text-transform:uppercase;white-space:nowrap;line-height:1;text-align:center;}
 
-    .card-label {
-      font-size: 0.65rem; letter-spacing: 0.22em; text-transform: uppercase;
-      color: var(--text-dim); margin-bottom: 1.1rem;
-      display: flex; align-items: center; gap: 0.7rem;
-    }
-    .card-label::before, .card-label::after {
-      content: ''; flex: 1; height: 1px;
-      background: linear-gradient(90deg, transparent, var(--border-dim), transparent);
-    }
+.vol-slider{
+  -webkit-appearance:none;appearance:none;
+  width:62px;height:3px;border-radius:3px;outline:none;cursor:pointer;
+  background:linear-gradient(to right,var(--gold) 100%,var(--surface3) 100%);
+  display:block;
+}
+.vol-slider::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;border-radius:50%;background:var(--gold);}
+.voice-wave{display:flex;align-items:center;gap:2px;height:13px;flex-shrink:0;}
+.voice-wave.off{display:none;}
+.voice-wave span{display:block;width:3px;border-radius:2px;background:var(--green);animation:waveBar .7s ease-in-out infinite;}
+.voice-wave span:nth-child(1){height:5px}.voice-wave span:nth-child(2){height:10px;animation-delay:.1s}.voice-wave span:nth-child(3){height:7px;animation-delay:.2s}.voice-wave span:nth-child(4){height:13px;animation-delay:.07s}.voice-wave span:nth-child(5){height:4px;animation-delay:.18s}
+@keyframes waveBar{0%,100%{transform:scaleY(1)}50%{transform:scaleY(.28)}}
 
-    @keyframes riseIn {
-      from { opacity: 0; transform: translateY(20px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
+/* play-btn removed — video controlled via YouTube iframe native controls */
+#play-icon{display:none;}
+.dock-emojis{display:flex;align-items:center;gap:.2rem;flex-shrink:0;}
+.emoji-btn{width:32px;height:32px;border-radius:50%;background:var(--surface);border:1px solid var(--border);font-size:.86rem;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .12s,background .12s;letter-spacing:0;text-transform:none;}
+.emoji-btn:hover{transform:scale(1.2);background:var(--surface2);}
+/* Emoji expand button — shown on mobile (portrait + landscape) when inline emojis are hidden */
+.emoji-expand-btn{
+  width:32px;height:32px;border-radius:50%;background:var(--surface);
+  border:1px solid var(--border);font-size:.78rem;color:var(--text-dim);
+  display:none;align-items:center;justify-content:center;cursor:pointer;
+  transition:background .12s,border-color .12s,color .12s;
+  letter-spacing:0;text-transform:none;flex-shrink:0;
+}
+.emoji-expand-btn:hover{background:var(--surface2);}
+.emoji-expand-btn.open{border-color:var(--gold);color:var(--gold);}
+/* Emoji panel — floats above dock, shown when expand-btn is tapped */
+.emoji-panel{
+  position:fixed;
+  bottom:calc(var(--dock-h) + env(safe-area-inset-bottom,0px) + 10px);
+  left:50%;transform:translateX(-50%);
+  z-index:400;
+  background:var(--surface2);border:1px solid var(--border-hi);
+  border-radius:var(--r);padding:.6rem .8rem;
+  display:grid;grid-template-columns:repeat(4,1fr);gap:.36rem;justify-items:center;
+  min-width:200px;max-width:300px;
+  box-shadow:0 6px 28px rgba(0,0,0,.55);
+  animation:toastIn .22s cubic-bezier(.22,1,.36,1) both;
+}
+.emoji-panel.hidden{display:none;}
+.epanel-btn{
+  width:38px;height:38px;border-radius:50%;background:var(--surface);
+  border:1px solid var(--border);font-size:1.05rem;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:transform .12s,background .12s;
+  letter-spacing:0;text-transform:none;
+}
+.epanel-btn:hover{transform:scale(1.22);background:var(--surface3);}
+.dock-next{display:flex;align-items:center;gap:.3rem;flex-shrink:0;width:220px;}
+.dock-next input{flex:1;min-width:0;margin-bottom:0;padding:.42rem .56rem;font-size:.71rem;background:var(--surface);border-color:var(--border);}
+.load-btn{background:var(--surface2);border:1px solid var(--border-hi);color:var(--gold);font-size:.63rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;border-radius:var(--r-sm);padding:.42rem .68rem;cursor:pointer;white-space:nowrap;transition:all .18s;flex-shrink:0;}
+.load-btn:hover{background:var(--teal);}
+.load-btn.ok{border-color:var(--green);color:var(--green);}
 
-    /* ── Inputs ── */
-    input[type="text"] {
-      width: 100%;
-      background: var(--bg);
-      border: 1px solid rgba(16,63,71,0.9);
-      border-radius: var(--r-sm);
-      padding: 0.85rem 1rem;
-      font-family: var(--font-ui);
-      font-size: 0.95rem;
-      color: var(--text);
-      outline: none; margin-bottom: 0.85rem;
-      transition: border-color 0.2s, box-shadow 0.2s;
-      -webkit-appearance: none;
-    }
-    input[type="text"]::placeholder { color: var(--text-faint); }
-    input[type="text"]:focus {
-      border-color: var(--gold-deep);
-      box-shadow: 0 0 0 3px rgba(225,193,121,0.08);
-    }
-    .input-code {
-      font-family: var(--font-brand); font-size: 2.2rem;
-      text-align: center; letter-spacing: 0.35em; font-weight: 700;
-      color: var(--gold);
-    }
-    .input-code::placeholder { color: var(--text-faint); letter-spacing: 0.2em; }
+/* ══ TOPBAR LOGO MARK (no animation) ══ */
+.topbar-logo{display:flex;align-items:center;}
+.topbar-logo-mark{
+  width:28px;height:28px;border-radius:8px;
+  background:linear-gradient(145deg,var(--surface2),var(--teal));
+  border:1px solid var(--border-hi);position:relative;
+  box-shadow:0 0 0 1px var(--border),inset 0 1px 0 rgba(225,193,121,.12);
+  flex-shrink:0;
+}
+.topbar-logo-mark::before,.topbar-logo-mark::after{
+  content:'';position:absolute;width:8px;height:8px;border-radius:50%;border:2px solid var(--gold);
+  top:50%;transform:translateY(-50%);
+}
+.topbar-logo-mark::before{left:4px;}
+.topbar-logo-mark::after{right:4px;opacity:.5;}
 
-    /* ── Buttons ── */
-    button {
-      font-family: var(--font-ui); font-weight: 500;
-      font-size: 0.8rem; letter-spacing: 0.1em; text-transform: uppercase;
-      border: none; border-radius: var(--r-sm);
-      padding: 0.88rem 1.4rem; cursor: pointer;
-      transition: transform 0.14s, box-shadow 0.14s, background 0.2s, border-color 0.2s;
-      -webkit-tap-highlight-color: transparent; touch-action: manipulation;
-    }
+/* ══ MIC STATE TEXT (standalone, no wrapper div) ══ */
+.mic-state-txt{
+  font-size:.63rem;font-weight:500;color:var(--text-dim);
+  white-space:nowrap;flex-shrink:0;min-width:52px;
+}
 
-    .btn-primary {
-      width: 100%;
-      background: linear-gradient(135deg, var(--gold) 0%, var(--gold-deep) 100%);
-      color: var(--bg-deep); font-weight: 600;
-      box-shadow: 0 4px 20px rgba(225,193,121,0.22);
-    }
-    .btn-primary:hover  { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(225,193,121,0.35); }
-    .btn-primary:active { transform: translateY(0); box-shadow: 0 2px 8px rgba(225,193,121,0.15); }
+/* ══ CHAT HEADER – consistent width across both panels ══ */
+.chat-header{
+  display:flex;align-items:center;
+  padding:.52rem .7rem;border-bottom:1px solid var(--border);
+  flex-shrink:0;gap:.35rem;min-height:38px;
+}
+.chat-hdr-title{font-size:.7rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-dim);flex-shrink:0;}
 
-    .btn-secondary {
-      width: 100%;
-      background: transparent;
-      border: 1px solid var(--border-hi);
-      color: var(--gold);
-    }
-    .btn-secondary:hover  { background: var(--gold-subtle); border-color: var(--gold); }
-    .btn-secondary:active { opacity: 0.8; }
+/* Fix #5: Role badge + username in chat header */
+.chat-header-right{display:flex;align-items:center;gap:.35rem;margin-left:auto;padding-right:.1rem;flex-shrink:0;overflow:hidden;max-width:65%;}
 
-    /* ── Error messages ── */
-    .msg-err {
-      font-size: 0.76rem; color: var(--red);
-      background: rgba(224,112,112,0.08); border: 1px solid rgba(224,112,112,0.2);
-      border-radius: var(--r-sm); padding: 0.5rem 0.85rem;
-      margin-bottom: 0.75rem; display: none;
-    }
-    .msg-err.show { display: block; }
+/* #1: username badge shown in chat header (not topbar) */
+.user-name-tag{
+  font-size:.6rem;font-weight:600;color:var(--text);
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:100px;padding:.15rem .48rem;
+  max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  flex-shrink:1;
+}
 
-    /* ── Divider ── */
-    .divider {
-      display: flex; align-items: center; gap: 0.9rem;
-      margin: 0.1rem 0; color: var(--text-faint);
-      font-size: 0.67rem; letter-spacing: 0.18em; text-transform: uppercase;
-    }
-    .divider::before, .divider::after {
-      content: ''; flex: 1; height: 1px;
-      background: linear-gradient(90deg, transparent, var(--border-dim), transparent);
-    }
+/* Ivory color for role as requested */
+.role-badge{
+  font-size:.57rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
+  padding:.15rem .52rem;border-radius:100px;
+  color:#F0EAD6; /* ivory */
+  border:1px solid rgba(240,234,214,.22);
+  background:rgba(240,234,214,.08);
+  white-space:nowrap;flex-shrink:0;
+}
+/* Fix #12: Members count pill with hover dropdown */
+.members-wrap{position:relative;flex-shrink:0;}
+.members-btn{
+  background:var(--surface2);border:1px solid var(--border);border-radius:100px;
+  padding:.15rem .45rem;font-size:.57rem;font-weight:600;color:var(--text-dim);
+  cursor:pointer;transition:all .18s;white-space:nowrap;
+  text-transform:none;letter-spacing:.03em;
+}
+.members-btn:hover{border-color:var(--border-hi);color:var(--text);}
+.members-dd{
+  position:fixed;
+  background:var(--surface);border:1px solid var(--border-hi);
+  border-radius:var(--r-sm);padding:.45rem 0;min-width:150px;
+  box-shadow:0 8px 28px rgba(0,0,0,.5);z-index:9999;
+}
+.members-dd-item{
+  padding:.32rem .75rem;font-size:.7rem;color:var(--text-dim);
+  display:flex;align-items:center;gap:.4rem;
+}
+.members-dd-item .you-tag{font-size:.52rem;color:var(--gold);background:rgba(225,193,121,.1);border:1px solid rgba(225,193,121,.2);border-radius:100px;padding:.05rem .3rem;}
+.members-dd-item.is-host::before{content:'🎬';font-size:.7rem;}
 
-    /* ══════════════════════════════════════════
-       WATCH ROOM
-    ══════════════════════════════════════════ */
-    #page-room {
-      display: flex; flex-direction: column; min-height: 100svh;
-      padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
-    }
+/* Fix #6: InkMind lobby share-link strip */
+.lobby-share{
+  background:rgba(16,63,71,.35);border:1px solid var(--border-hi);border-radius:var(--r-sm);
+  padding:.7rem 1rem;text-align:center;width:100%;max-width:290px;
+}
 
-    /* ── Top Bar ── */
-    .topbar {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 0.7rem 1.1rem;
-      padding-top: calc(0.7rem + env(safe-area-inset-top, 0px));
-      border-bottom: 1px solid var(--border);
-      background: rgba(8,15,16,0.92);
-      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-      position: sticky; top: 0; z-index: 100;
-    }
-    .topbar-brand {
-      font-family: var(--font-brand); font-size: 1.5rem; font-weight: 700;
-      letter-spacing: 0.22em; color: var(--gold);
-      text-shadow: 0 0 30px rgba(225,193,121,0.25);
-    }
-    .topbar-right { display: flex; align-items: center; gap: 0.6rem; }
+/* Fix #8: Send icon button */
+.chat-send-icon{
+  width:30px;height:30px;border-radius:50%;border:none;
+  background:linear-gradient(135deg,var(--gold),var(--gold-deep));
+  color:var(--bg-deep);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;padding:0;
+  box-shadow:0 2px 8px rgba(225,193,121,.28);
+  transition:transform .13s;
+}
+.chat-send-icon:hover{transform:scale(1.12);}
+.chat-send-icon:active{transform:scale(.9);}
 
-    .sync-pill {
-      display: flex; align-items: center; gap: 0.38rem;
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: 100px; padding: 0.28rem 0.72rem;
-      font-size: 0.67rem; color: var(--text-dim); letter-spacing: 0.05em;
-    }
-    .sync-dot {
-      width: 6px; height: 6px; border-radius: 50%;
-      background: var(--text-faint); flex-shrink: 0; transition: all 0.3s;
-    }
-    .sync-dot.live {
-      background: var(--green);
-      box-shadow: 0 0 7px var(--green);
-      animation: dotBlink 2.2s infinite;
-    }
-    @keyframes dotBlink { 0%,100%{opacity:1} 50%{opacity:0.38} }
+/* ══ RESPONSIVE ══ */
+/* ─── Tablet landscape + Desktop (≥1024px) ─── */
+@media (min-width:1024px){
+  :root{--chat-w:520px;}
+  .room-left{flex:1;}
+}
+/* ─── Tablet portrait (640–1023px) ─── */
+@media (min-width:640px) and (max-width:1023px){
+  :root{--chat-w:300px;}
+  .room-left{flex:1;}
+  .dock-next{max-width:160px;}
+  .voice-wave{display:none;}
+}
 
-    .code-chip {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--r-xs); padding: 0.28rem 0.65rem;
-      font-size: 0.65rem; letter-spacing: 0.1em; color: var(--text-dim);
-    }
-    .code-chip strong { color: var(--gold); letter-spacing: 0.22em; }
+/* ════════════════════════════════════════════════════════
+   MOBILE — Portrait  (phones in upright position, <640px wide)
+   Watch:    room-left = auto-height (16:9 video)   | room-right = chat fills rest
+   InkMind:  room-left = JS-set (56% room-body)     | room-right = chat fills rest
+   Chat is ALWAYS visible — no overlay, no toggle button.
+   ════════════════════════════════════════════════════════ */
+@media (max-width:639px) and (orientation:portrait){
+  :root{--topbar-h:48px;--ribbon-h:40px;--dock-h:52px;}
 
-    /* ── Player Section ── */
-    .player-section {
-      flex: 1; display: flex; flex-direction: column;
-      align-items: center; padding: 1rem; gap: 0.85rem;
-    }
-    .player-wrap { width: 100%; max-width: 920px; position: relative; }
+  /* ── Vertical stack ── */
+  .room-body{flex-direction:column;}
+  .room-left{
+    /* Default: auto height (Watch mode — sized by 16:9 video).
+       JS overrides to 56% for InkMind so canvas has room. */
+    flex:0 0 auto;min-height:0;overflow:hidden;
+    border-right:none;border-bottom:1px solid var(--border);
+  }
+  /* Chat always visible, no toggle */
+  .room-right{
+    flex:1!important;min-height:0;overflow:hidden;
+    display:flex!important;flex-direction:column;
+    position:relative!important;width:100%!important;
+    top:auto!important;bottom:auto!important;
+    left:auto!important;right:auto!important;
+    z-index:auto!important;background:transparent!important;
+  }
 
-    .player-box {
-      width: 100%; aspect-ratio: 16/9;
-      border-radius: var(--r); overflow: hidden;
-      background: #000; border: 1px solid var(--border);
-      position: relative;
-      box-shadow:
-        0 2px 0 0 rgba(225,193,121,0.08),
-        0 24px 80px rgba(0,0,0,0.7),
-        0 0 0 0 var(--gold-glow);
-      transition: box-shadow 0.45s ease;
-    }
-    .player-box.glow {
-      box-shadow:
-        0 2px 0 0 rgba(225,193,121,0.2),
-        0 24px 80px rgba(0,0,0,0.7),
-        0 0 48px 6px rgba(225,193,121,0.12);
-    }
-    .player-box iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  /* ── Watch tab: player auto-sizes to 16:9 ── */
+  #tab-watch{padding:.3rem .3rem .2rem;gap:0;overflow:visible;}
+  .player-wrap{flex:none;}
+  .player-box{width:100%;aspect-ratio:16/9;height:auto;border-radius:8px;}
 
-    /* ── Role Strip ── */
-    .role-strip {
-      width: 100%; max-width: 920px;
-      display: flex; align-items: center;
-      justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;
-    }
-    .role-pill {
-      font-size: 0.65rem; font-weight: 600; letter-spacing: 0.15em; text-transform: uppercase;
-      padding: 0.3rem 0.9rem; border-radius: 100px;
-    }
-    .role-pill.host  {
-      background: rgba(225,193,121,0.1); color: var(--gold);
-      border: 1px solid rgba(225,193,121,0.25);
-    }
-    .role-pill.guest {
-      background: rgba(94,203,161,0.1); color: var(--green);
-      border: 1px solid rgba(94,203,161,0.22);
-    }
-    .role-hint { font-size: 0.71rem; color: var(--text-dim); }
-    .guests-badge {
-      font-size: 0.69rem; color: var(--text-dim);
-      display: none; align-items: center; gap: 0.35rem;
-    }
-    .guests-badge strong { color: var(--text); }
+  /* ── InkMind tab: compact header + canvas fills room-left ── */
+  #tab-ink{padding:.22rem .3rem .18rem;gap:.12rem;overflow:hidden;}
+  .game-info-bar{flex-shrink:0;flex-wrap:nowrap;gap:.2rem;padding:.06rem 0;min-height:0;}
+  .game-status{font-size:.58rem;}
+  #word-area{font-size:clamp(.82rem,3.8vw,1.05rem);}
+  .live-score-bar{gap:.14rem;flex-shrink:0;}
+  .score-pill{font-size:.5rem;padding:.06rem .28rem;}
+  .canvas-toolbar{
+    flex-shrink:0;flex-wrap:nowrap;gap:.14rem;
+    overflow-x:auto;overflow-y:hidden;padding:.07rem 0;
+    -webkit-overflow-scrolling:touch;scrollbar-width:none;
+  }
+  .canvas-toolbar::-webkit-scrollbar{display:none;}
+  .color-swatch{width:18px;height:18px;flex-shrink:0;}
+  .canvas-act{font-size:.5rem;padding:.18rem .38rem;}
+  .brush-slider{width:42px;}
+  .scribble-wrap{flex:1;min-height:0;}
 
-    /* ── Invite Strip ── */
-    .invite-strip {
-      display: none; width: 100%; max-width: 920px;
-      background: linear-gradient(135deg, rgba(16,63,71,0.5), rgba(26,85,97,0.3));
-      border: 1px solid var(--border-hi);
-      border-radius: var(--r); padding: 1rem 1.4rem;
-      align-items: center; justify-content: space-between;
-      gap: 1rem; flex-wrap: wrap;
-      position: relative; overflow: hidden;
-    }
-    /* Gold shimmer line along top */
-    .invite-strip::before {
-      content: '';
-      position: absolute; top: 0; left: 0; right: 0; height: 1px;
-      background: linear-gradient(90deg, transparent 5%, var(--gold) 35%, var(--gold-pale) 50%, var(--gold) 65%, transparent 95%);
-      opacity: 0.5;
-    }
-    .invite-label {
-      font-size: 0.63rem; letter-spacing: 0.2em; text-transform: uppercase;
-      color: var(--text-dim); margin-bottom: 0.2rem;
-    }
-    .invite-code {
-      font-family: var(--font-brand); font-size: 2.1rem; font-weight: 700;
-      letter-spacing: 0.35em; color: var(--gold); line-height: 1;
-    }
-    .invite-code.flash { animation: codeFlash 1.6s ease-out; }
-    @keyframes codeFlash {
-      0%   { text-shadow: none; }
-      20%  { text-shadow: 0 0 24px var(--gold), 0 0 48px rgba(225,193,121,0.5); }
-      100% { text-shadow: none; }
-    }
-    .copy-btn {
-      background: rgba(225,193,121,0.1);
-      border: 1px solid var(--border-hi);
-      color: var(--gold);
-      font-family: var(--font-ui); font-size: 0.72rem; font-weight: 600;
-      letter-spacing: 0.1em; text-transform: uppercase;
-      border-radius: var(--r-sm); padding: 0.6rem 1.2rem;
-      cursor: pointer; transition: all 0.2s; white-space: nowrap;
-      -webkit-tap-highlight-color: transparent;
-    }
-    .copy-btn:hover  { background: rgba(225,193,121,0.18); border-color: var(--gold); }
-    .copy-btn.copied { border-color: var(--green); color: var(--green); background: rgba(94,203,161,0.08); }
+  /* ── Dock: essentials only ── */
+  .dock-inner{justify-content:flex-start;gap:.28rem;padding:0;}
+  .dock-left-group{gap:.3rem;}
+  .vol-wrap{display:none;}
+  .mic-state-txt{display:none;}
+  .voice-wave{display:none;}
+  .dock-next{display:none;}
+  /* Hide inline emoji-btns; show expand-btn instead → full panel on tap */
+  .dock-emojis .emoji-btn{display:none;}
+  .emoji-expand-btn{display:flex;}
+  .dock-right-group{display:none;}
 
-    /* ══════════════════════════════════════════
-       UNIFIED DOCK
-    ══════════════════════════════════════════ */
-    .dock {
-      position: fixed; bottom: 0; left: 0; right: 0; z-index: 200;
-      background: rgba(8,15,16,0.96);
-      backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
-      border-top: 1px solid var(--border);
-      padding: 0.65rem 1.1rem;
-      padding-bottom: calc(0.65rem + env(safe-area-inset-bottom, 0px));
-    }
-    /* Gold shimmer line on top of dock */
-    .dock::before {
-      content: '';
-      position: absolute; top: 0; left: 0; right: 0; height: 1px;
-      background: linear-gradient(90deg, transparent 0%, rgba(225,193,121,0.15) 30%, rgba(225,193,121,0.3) 50%, rgba(225,193,121,0.15) 70%, transparent 100%);
-    }
+  /* ── Nav: hide toggle — chat always visible ── */
+  .chat-toggle-btn{display:none!important;}
+  .ribbon-chat-btn{display:none!important;}
+  .topbar-brand{font-size:1.1rem;letter-spacing:.13em;}
+  /* Keep chat-header-right visible on mobile — username/role/members info is needed */
+  .chat-header-right{display:flex;max-width:58%;gap:.22rem;}
+  .user-name-tag{max-width:56px;font-size:.56rem;}
+  .role-badge{font-size:.5rem;padding:.1rem .38rem;}
+  .members-btn{font-size:.52rem;padding:.1rem .36rem;}
+  /* v22 Fix #10: hide smiley toggle in chat on mobile — users can use device keyboard emojis */
+  .emoji-ico{display:none;}
+}
 
-    .dock-inner {
-      max-width: 920px; margin: 0 auto;
-      display: flex; align-items: center;
-      justify-content: space-between; gap: 0.55rem;
-    }
+/* ════════════════════════════════════════════════════════
+   MOBILE — Landscape  (phones rotated, max-height ≤ 520px)
+   Layout: identical to desktop side-by-side.
+   Narrower chat panel, smaller controls.
+   ════════════════════════════════════════════════════════ */
+@media (max-height:520px) and (orientation:landscape){
+  :root{--topbar-h:40px;--ribbon-h:34px;--dock-h:44px;--chat-w:230px;}
 
-    /* ── Voice ── */
-    .dock-voice { display: flex; align-items: center; gap: 0.6rem; flex-shrink: 0; }
+  /* Side-by-side — same as desktop */
+  .room-body{flex-direction:row;}
+  .room-left{flex:1;min-width:0;border-right:1px solid var(--border);}
+  .room-right{
+    width:var(--chat-w);flex-shrink:0;display:flex;flex-direction:column;
+    position:static;overflow:hidden;
+  }
 
-    .mic-btn {
-      width: 46px; height: 46px; border-radius: 50%; border: none;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 1.2rem; cursor: pointer; position: relative;
-      background: rgba(16,63,71,0.8);
-      box-shadow: 0 0 0 1px rgba(94,203,161,0.3), inset 0 1px 0 rgba(255,255,255,0.06);
-      transition: transform 0.14s;
-      -webkit-tap-highlight-color: transparent;
-    }
-    .mic-btn::after {
-      content: ''; position: absolute; inset: 0; border-radius: 50%;
-      background: rgba(94,203,161,0.3); transform: scale(0); opacity: 0;
-    }
-    .mic-btn.ripple::after { animation: rippleOut 0.5s ease-out forwards; }
-    @keyframes rippleOut { 0%{transform:scale(0.8);opacity:0.6} 100%{transform:scale(2.4);opacity:0} }
+  /* No chat toggle needed — chat is always in the panel */
+  .chat-toggle-btn{display:none;}
+  .ribbon-chat-btn{display:none;}
 
-    .mic-btn.muted {
-      background: rgba(40,15,15,0.8);
-      box-shadow: 0 0 0 1px rgba(224,112,112,0.3), inset 0 1px 0 rgba(255,255,255,0.04);
-    }
-    .mic-btn.connecting {
-      background: rgba(16,63,71,0.8);
-      box-shadow: 0 0 0 1px rgba(225,193,121,0.3), inset 0 1px 0 rgba(255,255,255,0.06);
-      animation: breathe 1.7s ease-in-out infinite;
-    }
-    @keyframes breathe { 0%,100%{transform:scale(1)} 50%{transform:scale(1.08)} }
-    .mic-btn:active { transform: scale(0.9); }
+  /* ── Watch tab: video fills height ── */
+  #tab-watch{padding:.2rem;}
+  .player-wrap{flex:1;min-height:0;}
+  .player-box{width:100%;height:100%;border-radius:6px;}
 
-    .voice-info { display: flex; flex-direction: column; }
-    .voice-lbl  { font-size: 0.7rem; font-weight: 500; color: var(--text); line-height: 1.3; }
-    .voice-sub  { font-size: 0.6rem; color: var(--text-dim); line-height: 1.2; }
+  /* ── InkMind tab ── */
+  #tab-ink{padding:.18rem .22rem .12rem;gap:.12rem;overflow:hidden;}
+  .game-info-bar{flex-wrap:nowrap;gap:.2rem;padding:.08rem 0;flex-shrink:0;}
+  .game-status{font-size:.56rem;}
+  #word-area{font-size:clamp(.78rem,2vw,.95rem);}
+  .live-score-bar{gap:.12rem;flex-shrink:0;}
+  .score-pill{font-size:.48rem;padding:.06rem .26rem;}
+  .canvas-toolbar{
+    flex-shrink:0;flex-wrap:nowrap;gap:.12rem;
+    overflow-x:auto;padding:.08rem 0;scrollbar-width:none;
+  }
+  .canvas-toolbar::-webkit-scrollbar{display:none;}
+  .color-swatch{width:17px;height:17px;flex-shrink:0;}
+  .canvas-act{font-size:.48rem;padding:.16rem .34rem;}
+  .brush-slider{width:40px;}
 
-    .wave { display: flex; align-items: center; gap: 2px; height: 16px; }
-    .wave span {
-      display: block; width: 3px; border-radius: 2px;
-      background: var(--green);
-      animation: waveBar 0.75s ease-in-out infinite;
-    }
-    .wave span:nth-child(1){height:5px;  animation-delay:0s}
-    .wave span:nth-child(2){height:13px; animation-delay:0.1s}
-    .wave span:nth-child(3){height:8px;  animation-delay:0.2s}
-    .wave span:nth-child(4){height:16px; animation-delay:0.07s}
-    .wave span:nth-child(5){height:5px;  animation-delay:0.17s}
-    @keyframes waveBar { 0%,100%{transform:scaleY(1)} 50%{transform:scaleY(0.28)} }
-    .wave.off { display: none; }
+  /* ── Dock ── */
+  .dock-inner{gap:.22rem;padding:0;}
+  .vol-wrap{display:none;}
+  .mic-state-txt{display:none;}
+  .voice-wave{display:none;}
+  .dock-next{display:none;}
+  /* Same as portrait: hide inline emoji-btns, show expand-btn for full panel */
+  .dock-emojis .emoji-btn{display:none;}
+  .emoji-expand-btn{display:flex;}
+  .dock-right-group{display:none;}
+  .topbar-brand{font-size:1rem;letter-spacing:.12em;}
+  .code-chip{font-size:.54rem;}
+  /* Keep chat-header-right visible in landscape */
+  .chat-header-right{max-width:55%;gap:.2rem;}
+  .user-name-tag{max-width:50px;font-size:.54rem;}
+  .role-badge{font-size:.48rem;padding:.08rem .32rem;}
+  .members-btn{font-size:.5rem;padding:.08rem .3rem;}
+  /* v22 Fix #10: hide smiley toggle in chat on mobile */
+  .emoji-ico{display:none;}
+}
 
-    /* ── Play / Pause ── */
-    .play-btn {
-      width: 52px; height: 52px; border-radius: 50%; border: none; flex-shrink: 0;
-      background: linear-gradient(145deg, var(--gold) 0%, var(--gold-deep) 100%);
-      color: var(--bg-deep); font-size: 1.2rem;
-      display: flex; align-items: center; justify-content: center;
-      cursor: pointer;
-      box-shadow: 0 4px 20px rgba(225,193,121,0.3), inset 0 1px 0 rgba(255,255,255,0.25);
-      transition: transform 0.14s, box-shadow 0.14s;
-      -webkit-tap-highlight-color: transparent;
-    }
-    .play-btn:hover  { transform: scale(1.1); box-shadow: 0 6px 28px rgba(225,193,121,0.48), inset 0 1px 0 rgba(255,255,255,0.25); }
-    .play-btn:active { transform: scale(0.92); box-shadow: 0 2px 8px rgba(225,193,121,0.2); }
+/* Chat toggle button (mobile only) */
+.chat-toggle-btn{
+  display:none; /* shown only on mobile via media query above */
+  width:34px;height:34px;border-radius:50%;
+  background:var(--surface);border:1px solid var(--border);
+  font-size:.88rem;align-items:center;justify-content:center;
+  cursor:pointer;transition:background .13s;flex-shrink:0;position:relative;
+}
+.chat-toggle-btn:hover{background:var(--surface2);}
+.chat-unread-dot{
+  display:none;position:absolute;top:-1px;right:-1px;
+  width:8px;height:8px;border-radius:50%;background:var(--gold);
+  border:2px solid var(--bg);
+}
+.chat-unread-dot.show{display:block;}
 
-    /* ── Emoji ── */
-    .dock-emojis { display: flex; align-items: center; gap: 0.28rem; flex-shrink: 0; }
-    .emoji-btn {
-      width: 38px; height: 38px; border-radius: 50%;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      font-size: 1.1rem; display: flex; align-items: center; justify-content: center;
-      cursor: pointer; transition: transform 0.13s, background 0.13s, border-color 0.13s;
-      -webkit-tap-highlight-color: transparent;
-    }
-    .emoji-btn:hover  { transform: scale(1.25); background: var(--surface2); border-color: var(--border-hi); }
-    .emoji-btn:active { transform: scale(0.84); }
+/* Ribbon chat btn (mobile only) */
+.ribbon-chat-btn{
+  display:none; /* shown only on mobile */
+  align-items:center;gap:.35rem;
+  padding:0 .9rem;height:100%;
+  font-size:.68rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+  border:none;border-left:1px solid var(--border);background:transparent;
+  color:var(--text-dim);cursor:pointer;transition:all .2s;white-space:nowrap;
+  margin-left:auto;flex-shrink:0;
+}
+.ribbon-chat-btn.active{color:var(--gold);background:rgba(225,193,121,.05);}
 
-    /* ── Next Video ── */
-    .dock-next { display: flex; align-items: center; gap: 0.42rem; flex: 1; min-width: 0; }
-    .dock-next input[type="text"] {
-      flex: 1; min-width: 0; margin-bottom: 0;
-      padding: 0.55rem 0.75rem; font-size: 0.78rem;
-      background: var(--surface);
-      border-color: var(--border);
-    }
-    .dock-next input[type="text"]:focus { border-color: var(--gold-deep); }
-    .load-btn {
-      background: var(--surface2); border: 1px solid var(--border-hi);
-      color: var(--gold); font-family: var(--font-ui); font-size: 0.7rem;
-      font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase;
-      border-radius: var(--r-sm); padding: 0.55rem 0.88rem;
-      cursor: pointer; white-space: nowrap; transition: all 0.2s;
-      -webkit-tap-highlight-color: transparent;
-    }
-    .load-btn:hover   { background: var(--teal-mid); border-color: var(--gold); }
-    .load-btn.confirm { border-color: var(--green); color: var(--green); background: rgba(94,203,161,0.08); }
-
-    /* ══════════════════════════════════════════
-       EMOJI FLOATS
-    ══════════════════════════════════════════ */
-    .emoji-float {
-      position: absolute; font-size: 3rem; pointer-events: none; z-index: 50;
-      user-select: none; filter: drop-shadow(0 3px 12px rgba(0,0,0,0.6));
-      animation: floatUp 2.7s cubic-bezier(0.22,1,0.36,1) forwards;
-    }
-    @keyframes floatUp {
-      0%   { opacity:0;   transform:translateY(0)     scale(0.35) rotate(0deg); }
-      14%  { opacity:1;   transform:translateY(-22px) scale(1.3)  rotate(-5deg); }
-      50%  { opacity:1;   transform:translateY(-78px) scale(1)    rotate(7deg); }
-      100% { opacity:0;   transform:translateY(-170px) scale(0.8)  rotate(-9deg); }
-    }
-
-    /* ══════════════════════════════════════════
-       RESPONSIVE
-    ══════════════════════════════════════════ */
-    @media (max-width: 620px) {
-      .voice-info { display: none; }
-      .wave { display: none !important; }
-      .dock-inner { gap: 0.3rem; }
-      .emoji-btn { width: 34px; height: 34px; font-size: 1rem; }
-      .mic-btn   { width: 42px; height: 42px; }
-      .play-btn  { width: 48px; height: 48px; font-size: 1.15rem; }
-      .dock-next input[type="text"] { font-size: 0.72rem; padding: 0.48rem 0.58rem; }
-      .load-btn  { font-size: 0.65rem; padding: 0.48rem 0.65rem; }
-      .invite-code { font-size: 1.7rem; }
-      .brand-name  { letter-spacing: 0.18em; }
-    }
-    @media (max-width: 400px) {
-      .emoji-btn:nth-child(n+4) { display: none; }
-    }
-    @media (min-width: 768px) {
-      .dock-inner  { gap: 1rem; }
-      .dock-emojis { gap: 0.45rem; }
-      .emoji-btn   { width: 42px; height: 42px; font-size: 1.2rem; }
-    }
-    @media (max-height: 480px) and (orientation: landscape) {
-      .player-section { padding: 0.4rem; }
-      .role-strip, .invite-strip { display: none !important; }
-      #page-room { padding-bottom: calc(68px + env(safe-area-inset-bottom, 0px)); }
-    }
-  </style>
+/* Role strip removed — role now shows in chat-header-right */
+</style>
 </head>
 <body>
+<div class="toast-container" id="toast-container"></div>
 
-<!-- ══════════════════════════════════════════
-     LANDING
-══════════════════════════════════════════ -->
-<div id="page-landing">
-  <div class="bg-layer bg-1"></div>
-  <div class="bg-layer bg-2"></div>
-  <div class="bg-layer bg-3"></div>
-
-  <div class="logo-block">
-    <div class="logo-mark"><div class="logo-mark-shine"></div></div>
-    <div class="brand-name">DYAD</div>
-    <p class="tagline">Watch together · No matter the distance</p>
-  </div>
-
-  <div class="landing-inner">
-    <div class="card">
-      <div class="card-label">Start a room</div>
-      <input type="text" id="input-url" placeholder="Paste a YouTube URL…" autocomplete="off" />
-      <div class="msg-err" id="err-create"></div>
-      <button class="btn-primary" onclick="createRoom()">Create Room &amp; Invite ›</button>
+<!-- ══ QUICK-JOIN (shared-link landing) ══ -->
+<div id="quick-join" class="hidden">
+  <div class="qj-logo">DYAD</div>
+  <div class="qj-invite">
+    <div class="qj-label">You've been invited</div>
+    <div class="qj-code" id="qj-code">——</div>
+    <div class="qj-name">
+      <input type="text" id="qj-username" placeholder="Enter your name…" maxlength="24" autocomplete="off" autocorrect="off"/>
     </div>
+    <button class="qj-btn" onclick="doQuickJoin()">Join Now →</button>
+    <div class="qj-err" id="qj-err"></div>
+  </div>
+</div>
 
-    <div class="divider">or</div>
+<!-- ══ WATCH INVITE CARD ══ -->
+<div class="watch-invite-card" id="watch-invite-card">
+  <div class="wic-bar"><div class="wic-fill" id="wic-fill" style="width:100%;transition:none"></div></div>
+  <div class="wic-row">
+    <div class="wic-icon">📺</div>
+    <div>
+      <div class="wic-title" id="wic-title">Someone started a video</div>
+      <div class="wic-sub">Switch to Watch to sync up?</div>
+    </div>
+  </div>
+  <div class="wic-btns">
+    <button class="wic-yes" onclick="acceptWatchInvite()">✓ Join</button>
+    <button class="wic-no"  onclick="declineWatchInvite()">✗ Stay</button>
+  </div>
+</div>
 
-    <div class="card">
-      <div class="card-label">Join a room</div>
-      <input type="text" id="input-code" class="input-code" placeholder="XXXXXX"
-             maxlength="6" autocomplete="off" autocapitalize="characters" />
-      <div class="msg-err" id="err-join"></div>
-      <button class="btn-secondary" onclick="joinRoom()">Join Room</button>
+<!-- ══ GAME CONFIG MODAL ══ -->
+<div class="modal-bg" id="gcm-bg">
+  <div class="gcm">
+    <div class="gcm-title">InkMind</div>
+    <div class="gcm-sub">How many rounds per player?</div>
+    <label class="gcm-label">Rounds per player</label>
+    <div class="rounds-stepper">
+      <button class="rounds-adj" onclick="adjRounds(-1)">−</button>
+      <span class="rounds-val" id="rounds-val">1</span>
+      <button class="rounds-adj" onclick="adjRounds(+1)">+</button>
+    </div>
+    <div class="gcm-btns">
+      <button class="gcm-start" onclick="confirmStart()">Let's Draw!</button>
+      <button class="gcm-cancel" onclick="closeGCM()">Cancel</button>
     </div>
   </div>
 </div>
 
+<!-- ══ LEADERBOARD ══ -->
+<div class="lb-overlay" id="lb-overlay">
+  <div class="lb-card">
+    <span class="lb-badge">🏆</span>
+    <div class="lb-title">Game Leaderboard</div>
+    <div class="lb-sub" id="lb-sub">Final standings</div>
+    <div class="lb-list" id="lb-list"></div>
+    <div class="lb-btns">
+      <button class="lb-new" onclick="openGCM()">Play Again</button>
+      <button class="lb-close" onclick="closeLB()">Close</button>
+    </div>
+  </div>
+</div>
 
-<!-- ══════════════════════════════════════════
-     WATCH ROOM
-══════════════════════════════════════════ -->
-<div id="page-room" class="hidden">
-
-  <div class="topbar">
-    <div class="topbar-brand">DYAD</div>
-    <div class="topbar-right">
-      <div class="sync-pill">
-        <div class="sync-dot" id="sync-dot"></div>
-        <span id="sync-label">Connecting</span>
+<!-- ══ LANDING ══ -->
+<div id="page-landing">
+  <div class="bg-layer bg-1"></div><div class="bg-layer bg-2"></div><div class="bg-layer bg-3"></div>
+  <div class="logo-block">
+    <div class="logo-mark"><div class="logo-shine"></div></div>
+    <div class="brand-name">DYAD</div>
+    <p class="tagline">Shared Moments</p>
+  </div>
+  <div class="landing-inner">
+    <div class="mode-toggle">
+      <button class="mode-btn active" id="mode-stream-btn" onclick="setMode('stream')">📺 Co-watch</button>
+      <button class="mode-btn"        id="mode-game-btn"   onclick="setMode('game')">🎨 InkMind</button>
+    </div>
+    <div class="username-card">
+      <div class="card-label">Your name</div>
+      <div class="username-row">
+        <input type="text" id="input-username" placeholder="Enter your name…" maxlength="24" autocomplete="off"/>
+        <button class="randomize-btn" onclick="randomizeName()">🎲 Random</button>
       </div>
-      <div class="code-chip" id="code-chip" style="display:none">
-        Room&nbsp;<strong id="topbar-code">——</strong>
+    </div>
+    <div id="stream-opts">
+      <div class="cards-row">
+        <div class="card">
+          <div class="card-label">Start a room</div>
+          <input type="text" id="input-url" placeholder="Paste a YouTube URL…" autocomplete="off"/>
+          <div class="msg-err" id="err-create"></div>
+          <button class="btn-primary" onclick="createRoom()">Create Room</button>
+        </div>
+        <div class="card">
+          <div class="card-label">Join a room</div>
+          <input type="text" id="input-code" class="input-code" placeholder="XXXXXX" maxlength="6" autocomplete="off" autocapitalize="characters"/>
+          <div class="msg-err" id="err-join"></div>
+          <button class="btn-secondary" onclick="joinRoom()">Join Room</button>
+        </div>
+      </div>
+    </div>
+    <div id="game-opts" class="hidden">
+      <div class="cards-row">
+        <div class="card">
+          <div class="card-label">Create a game</div>
+          <p style="font-size:.76rem;color:var(--text-dim);margin-bottom:.7rem;line-height:1.5">Create an InkMind room and share the code!</p>
+          <div class="msg-err" id="err-create-game"></div>
+          <button class="btn-primary" onclick="createGameRoom()">Create Game</button>
+        </div>
+        <div class="card">
+          <div class="card-label">Join a game</div>
+          <input type="text" id="input-code-game" class="input-code" placeholder="XXXXXX" maxlength="6" autocomplete="off" autocapitalize="characters"/>
+          <div class="msg-err" id="err-join-game"></div>
+          <button class="btn-secondary" onclick="joinGameRoom()">Join Game</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ ROOM ══ -->
+<div id="page-room" class="hidden">
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="topbar-brand">DYAD</div>
+    </div>
+    <div class="topbar-right">
+      <div class="code-chip hidden" id="code-chip" onclick="copyChip()" title="Copy room invite link">
+        🔗 Copy Room Link&nbsp;<strong id="topbar-code">——</strong>
       </div>
     </div>
   </div>
 
-  <div class="player-section">
-
-    <div class="player-wrap">
-      <div class="player-box" id="player-box">
-        <div id="yt-player"></div>
-      </div>
+  <!-- RIBBON -->
+  <div class="mode-ribbon">
+    <button class="ribbon-btn" id="rb-watch" onclick="ribbonWatch()">📺 Watch</button>
+    <div class="yt-tray" id="yt-tray">
+      <input type="text" id="yt-tray-input" placeholder="Paste YouTube URL…" autocomplete="off"/>
+      <button class="yt-load" onclick="loadFromTray()">▶ Load</button>
     </div>
+    <div style="width:1px;height:22px;background:var(--border);flex-shrink:0;"></div>
+    <button class="ribbon-btn" id="rb-ink" onclick="ribbonInkMind()">🎨 InkMind</button>
+    <!-- Mobile chat button -->
+    <button class="ribbon-chat-btn" id="rb-chat" onclick="toggleMobileChat()">💬 Chat</button>
+  </div>
 
-    <div class="role-strip">
-      <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;">
-        <span class="role-pill" id="role-pill">—</span>
-        <span class="role-hint" id="role-hint"></span>
+  <!-- ROOM BODY -->
+  <div class="room-body">
+    <!-- LEFT panel -->
+    <div class="room-left" id="room-left">
+      <!-- WATCH TAB -->
+      <div class="tab-content active" id="tab-watch">
+        <div class="player-wrap">
+          <div class="player-box" id="player-box">
+            <div id="yt-player"></div>
+            <div class="no-video" id="no-video">
+              <h3>No video yet</h3>
+              <p>Use the Watch tab above to load a YouTube video.</p>
+            </div>
+            <!-- #7 Sync prompt for guests joining a live video -->
+            <div class="sync-prompt" id="sync-prompt">
+              <div class="sync-prompt-label">Video is live — tap to join in sync</div>
+              <button class="sync-play-btn" onclick="doSyncPlay()">▶ Play in Sync</button>
+            </div>
+          </div>
+        </div>
       </div>
-      <div class="guests-badge" id="guests-badge">
-        👥&nbsp;<strong id="guest-count">0</strong>&nbsp;watching
+
+      <!-- INKMIND TAB -->
+      <div class="tab-content" id="tab-ink">
+        <div class="game-info-bar">
+          <div class="game-status" id="game-status">Ready to draw ✏️</div>
+          <div id="word-area"></div>
+          <div style="display:flex;align-items:center;gap:.45rem;flex-shrink:0;">
+            <span class="round-counter hidden" id="round-counter"></span>
+            <div class="timer-ring hidden" id="timer-ring">
+              <svg class="timer-svg" width="38" height="38" viewBox="0 0 38 38">
+                <circle class="timer-track" cx="19" cy="19" r="16"/>
+                <circle class="timer-fill" cx="19" cy="19" r="16" id="timer-fill"/>
+              </svg>
+              <div class="timer-text" id="timer-text">60</div>
+            </div>
+          </div>
+        </div>
+        <div class="live-score-bar" id="live-score-bar"></div>
+        <!-- Toolbar (drawer only) -->
+        <div class="canvas-toolbar" id="canvas-toolbar">
+          <div class="color-swatch selected" style="background:#1a1a2e" data-color="#1a1a2e" onclick="pickColor(this)"></div>
+          <div class="color-swatch" style="background:#e74c3c" data-color="#e74c3c" onclick="pickColor(this)"></div>
+          <div class="color-swatch" style="background:#e67e22" data-color="#e67e22" onclick="pickColor(this)"></div>
+          <div class="color-swatch" style="background:#2ecc71" data-color="#2ecc71" onclick="pickColor(this)"></div>
+          <div class="color-swatch" style="background:#3498db" data-color="#3498db" onclick="pickColor(this)"></div>
+          <div class="color-swatch" style="background:#9b59b6" data-color="#9b59b6" onclick="pickColor(this)"></div>
+          <div class="color-swatch" style="background:#E1C179" data-color="#E1C179" onclick="pickColor(this)"></div>
+          <div class="color-swatch" style="background:#fff;border-color:#ccc" data-color="#ffffff" onclick="pickColor(this)"></div>
+          <input type="range" class="brush-slider" id="brush-size" min="2" max="24" value="5"/>
+          <button class="canvas-act undo-btn" onclick="undoStroke()" title="Ctrl+Z">↩</button>
+          <button class="canvas-act clear-btn" onclick="clearCanvas()">🗑</button>
+        </div>
+        <div class="scribble-wrap">
+          <div class="canvas-area" id="canvas-area">
+            <canvas class="scribble-canvas" id="scribble-canvas"></canvas>
+            <!-- Lobby -->
+            <div class="sc-overlay" id="ov-lobby">
+              <h2>🎨 InkMind</h2>
+              <p>Draw words. Guess fast. Win points!</p>
+              <!-- Share link strip (shown when solo, hidden once 2+ players) -->
+              <div class="lobby-share" id="lobby-share">
+                <div style="font-size:.66rem;color:var(--text-dim);margin-bottom:.4rem">Share this link to invite players</div>
+                <button class="ov-btn" style="font-size:.68rem;padding:.55rem 1.2rem;letter-spacing:.06em" onclick="copyChip()">🔗 Copy Invite Link</button>
+                <div style="font-size:.6rem;color:var(--text-faint);margin-top:.35rem" id="lobby-waiting">Waiting for players to join…</div>
+              </div>
+              <button class="ov-btn hidden" id="start-btn" onclick="openGCM()">Start Game</button>
+              <p class="hidden" id="wait-msg" style="font-size:.68rem;color:var(--text-faint)">Waiting for someone to start…</p>
+            </div>
+            <!-- Word choice (drawer) -->
+            <div class="sc-overlay hidden" id="ov-choice">
+              <h2 style="color:var(--green)">Pick Your Word</h2>
+              <div class="choice-countdown" id="cc-drawer">10</div>
+              <div class="word-choices-grid" id="choices-grid"></div>
+            </div>
+            <!-- Waiting for drawer (guessers) -->
+            <div class="sc-overlay hidden" id="ov-choosing">
+              <h2>⏳ Choosing…</h2>
+              <p id="choosing-msg">The drawer is picking a word</p>
+              <div class="choice-countdown" id="cc-watcher">10</div>
+            </div>
+            <!-- Round end -->
+            <div class="sc-overlay hidden" id="ov-round-end">
+              <div class="round-result-big" id="rr-text"></div>
+              <div class="round-word-reveal" id="rr-word"></div>
+              <div class="round-scores-mini" id="rr-scores"></div>
+              <p style="font-size:.68rem;color:var(--text-faint)">Starting next round…!</p>
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
+    </div><!-- /room-left -->
 
-    <div class="invite-strip" id="invite-strip">
-      <div>
-        <div class="invite-label">Share this code with your friend</div>
-        <div class="invite-code" id="invite-code">——</div>
+    <!-- RIGHT: chat -->
+    <div class="room-right" id="room-right">
+      <!-- Fix 5: Event notification pill — floats over chat, never over video/canvas -->
+      <div class="chat-notif" id="chat-notif"></div>
+      <!-- Watch chat -->
+      <div class="chat-panel" id="chat-watch">
+        <div class="chat-header">
+          <span class="chat-hdr-title">💬 Watch Chat</span>
+          <div class="chat-header-right">
+            <span class="user-name-tag" id="user-name-watch"></span>
+            <span class="role-badge" id="role-badge">—</span>
+            <div class="members-wrap" id="members-wrap">
+              <button class="members-btn" id="members-btn" onclick="toggleMembersDD('watch')">👥 <span id="members-count">1</span></button>
+              <div class="members-dd" id="members-dd" style="display:none"></div>
+            </div>
+          </div>
+          <span class="unread-star hidden" id="watch-star"></span>
+        </div>
+        <div class="chat-messages" id="watch-msgs">
+          <div class="typing-ind" id="watch-typing">
+            <div class="typing-dots"><span></span><span></span><span></span></div>
+            <span id="watch-type-name"></span><span>&nbsp;…</span>
+          </div>
+        </div>
+        <div class="quick-emojis" id="watch-qe">
+          <button class="q-emoji" onclick="insertEmoji('watch','👍')">👍</button>
+          <button class="q-emoji" onclick="insertEmoji('watch','😊')">😊</button>
+          <button class="q-emoji" onclick="insertEmoji('watch','😂')">😂</button>
+          <button class="q-emoji" onclick="insertEmoji('watch','😉')">😉</button>
+          <button class="q-emoji" onclick="insertEmoji('watch','😍')">😍</button>
+          <button class="q-emoji" onclick="insertEmoji('watch','😘')">😘</button>
+          <button class="q-emoji" onclick="insertEmoji('watch','❤️')">❤️</button>
+          <button class="q-emoji" onclick="insertEmoji('watch','🔥')">🔥</button>
+          <button class="q-emoji" onclick="insertEmoji('watch','👏')">👏</button>
+          <button class="q-emoji" onclick="insertEmoji('watch','🎉')">🎉</button>
+          <button class="q-emoji" onclick="insertEmoji('watch','🤔')">🤔</button>
+          <button class="q-emoji" onclick="insertEmoji('watch','😠')">😠</button>
+          <button class="q-emoji" onclick="insertEmoji('watch','😴')">😴</button>
+          <button class="q-emoji" onclick="insertEmoji('watch','🥲')">🥲</button>
+          <button class="q-emoji" onclick="insertEmoji('watch','😏')">😏</button>
+          <button class="q-emoji" onclick="insertEmoji('watch','😇')">😇</button>
+          <button class="q-emoji" onclick="insertEmoji('watch','🙏')">🙏</button>
+          <button class="q-emoji" onclick="insertEmoji('watch','🫣')">🫣</button>
+          <button class="q-emoji" onclick="insertEmoji('watch','😎')">😎</button>
+          <button class="q-emoji" onclick="insertEmoji('watch','🤭')">🤭</button>
+          <button class="q-emoji" onclick="insertEmoji('watch','🤫')">🤫</button>
+          <button class="q-emoji" onclick="insertEmoji('watch','😜')">😜</button>
+        </div>
+        <div class="chat-input-row">
+          <button class="emoji-ico" onclick="toggleQE('watch')">😊</button>
+          <input type="text" id="watch-input" placeholder="Type a message…" maxlength="300" autocomplete="off"/>
+          <button class="chat-send chat-send-icon" onclick="sendChat('watch')" title="Send">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          </button>
+        </div>
+        <div class="landscape-hint">📱 Rotate to landscape for a better experience</div>
       </div>
-      <button class="copy-btn" id="copy-btn" onclick="copyCode()">Copy Code</button>
-    </div>
+      <!-- InkMind chat -->
+      <div class="chat-panel hidden" id="chat-ink">
+        <div class="chat-header">
+          <span class="chat-hdr-title" id="ink-chat-title">💬 InkMind Chat</span>
+          <!-- #9: Same role/members/username in InkMind header -->
+          <div class="chat-header-right">
+            <span class="user-name-tag" id="user-name-ink"></span>
+            <span class="role-badge" id="role-badge-ink">—</span>
+            <div class="members-wrap" id="members-wrap-ink">
+              <button class="members-btn" id="members-btn-ink" onclick="toggleMembersDD('ink')">👥 <span id="members-count-ink">1</span></button>
+              <div class="members-dd" id="members-dd-ink" style="display:none"></div>
+            </div>
+          </div>
+          <span class="unread-star hidden" id="ink-star"></span>
+        </div>
+        <div class="chat-messages" id="ink-msgs">
+          <div class="typing-ind" id="ink-typing">
+            <div class="typing-dots"><span></span><span></span><span></span></div>
+            <span id="ink-type-name"></span><span>&nbsp;…</span>
+          </div>
+        </div>
+        <div class="quick-emojis" id="ink-qe">
+          <button class="q-emoji" onclick="insertEmoji('ink','👍')">👍</button>
+          <button class="q-emoji" onclick="insertEmoji('ink','😊')">😊</button>
+          <button class="q-emoji" onclick="insertEmoji('ink','😂')">😂</button>
+          <button class="q-emoji" onclick="insertEmoji('ink','😉')">😉</button>
+          <button class="q-emoji" onclick="insertEmoji('ink','😍')">😍</button>
+          <button class="q-emoji" onclick="insertEmoji('ink','😘')">😘</button>
+          <button class="q-emoji" onclick="insertEmoji('ink','❤️')">❤️</button>
+          <button class="q-emoji" onclick="insertEmoji('ink','🔥')">🔥</button>
+          <button class="q-emoji" onclick="insertEmoji('ink','👏')">👏</button>
+          <button class="q-emoji" onclick="insertEmoji('ink','🎉')">🎉</button>
+          <button class="q-emoji" onclick="insertEmoji('ink','🤔')">🤔</button>
+          <button class="q-emoji" onclick="insertEmoji('ink','😠')">😠</button>
+          <button class="q-emoji" onclick="insertEmoji('ink','😴')">😴</button>
+          <button class="q-emoji" onclick="insertEmoji('ink','🥲')">🥲</button>
+          <button class="q-emoji" onclick="insertEmoji('ink','😏')">😏</button>
+          <button class="q-emoji" onclick="insertEmoji('ink','😇')">😇</button>
+          <button class="q-emoji" onclick="insertEmoji('ink','🙏')">🙏</button>
+          <button class="q-emoji" onclick="insertEmoji('ink','🫣')">🫣</button>
+          <button class="q-emoji" onclick="insertEmoji('ink','😎')">😎</button>
+          <button class="q-emoji" onclick="insertEmoji('ink','🤭')">🤭</button>
+          <button class="q-emoji" onclick="insertEmoji('ink','🤫')">🤫</button>
+          <button class="q-emoji" onclick="insertEmoji('ink','😜')">😜</button>
+        </div>
+        <div class="chat-input-row">
+          <button class="emoji-ico" onclick="toggleQE('ink')">😊</button>
+          <input type="text" id="ink-input" placeholder="Guess the word…" maxlength="100" autocomplete="off"/>
+          <button class="chat-send chat-send-icon" onclick="sendChat('ink')" title="Send / Guess">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          </button>
+        </div>
+        <div class="landscape-hint">📱 Rotate to landscape for a better experience</div>
+      </div>
+    </div><!-- /room-right -->
+  </div><!-- /room-body -->
 
-  </div><!-- /player-section -->
+  <!-- Fix 4: Emoji expand panel — floats above dock, all emojis accessible on mobile -->
+  <div class="emoji-panel hidden" id="emoji-panel">
+    <button class="epanel-btn" onclick="sendEmojiPanel('👍')">👍</button>
+    <button class="epanel-btn" onclick="sendEmojiPanel('😊')">😊</button>
+    <button class="epanel-btn" onclick="sendEmojiPanel('😂')">😂</button>
+    <button class="epanel-btn" onclick="sendEmojiPanel('❤️')">❤️</button>
+    <button class="epanel-btn" onclick="sendEmojiPanel('🔥')">🔥</button>
+    <button class="epanel-btn" onclick="sendEmojiPanel('👏')">👏</button>
+    <button class="epanel-btn" onclick="sendEmojiPanel('🎉')">🎉</button>
+    <button class="epanel-btn" onclick="sendEmojiPanel('😉')">😉</button>
+    <button class="epanel-btn" onclick="sendEmojiPanel('😏')">😏</button>
+    <button class="epanel-btn" onclick="sendEmojiPanel('😤')">😤</button>
+    <button class="epanel-btn" onclick="sendEmojiPanel('😠')">😠</button>
+    <button class="epanel-btn" onclick="sendEmojiPanel('😍')">😍</button>
+  </div>
 
-  <!-- Unified Dock -->
+  <!-- DOCK -->
   <div class="dock">
     <div class="dock-inner">
-
-      <div class="dock-voice">
-        <button class="mic-btn connecting" id="mic-btn" onclick="toggleMic()">🎙️</button>
-        <div class="voice-info">
-          <div class="voice-lbl" id="voice-lbl">Setting up…</div>
-          <div class="voice-sub" id="voice-sub">Awaiting mic</div>
+      <!-- Left group: mic + vol + play + emojis -->
+      <div class="dock-left-group">
+        <div class="dock-voice">
+          <button class="mic-btn pending" id="mic-btn" onclick="toggleMic()" title="Microphone">🎙️</button>
+          <span class="mic-state-txt" id="mic-state-txt">Setting up…</span>
+          <div class="vol-wrap">
+            <input type="range" class="vol-slider" id="vol-slider" min="0" max="100" value="100"/>
+            <span class="vol-label">Voice</span>
+          </div>
+          <div class="voice-wave off" id="voice-wave"><span></span><span></span><span></span><span></span><span></span></div>
         </div>
-        <div class="wave off" id="voice-wave">
-          <span></span><span></span><span></span><span></span><span></span>
+        <div class="dock-emojis" id="dock-emojis">
+          <button class="emoji-btn" onclick="sendEmoji('👍')">👍</button>
+          <button class="emoji-btn" onclick="sendEmoji('😊')">😊</button>
+          <button class="emoji-btn" onclick="sendEmoji('😂')">😂</button>
+          <button class="emoji-btn" onclick="sendEmoji('❤️')">❤️</button>
+          <button class="emoji-btn" onclick="sendEmoji('🔥')">🔥</button>
+          <button class="emoji-btn" onclick="sendEmoji('😏')">😏</button>
+          <button class="emoji-btn" onclick="sendEmoji('😤')">😤</button>
+          <button class="emoji-btn" onclick="sendEmoji('😠')">😠</button>
+          <button class="emoji-expand-btn" id="emoji-expand-btn" onclick="toggleEmojiPanel()" title="More reactions">😊</button>
+        </div>
+        <!-- Next video URL — inline in left dock, visible to all users -->
+        <div class="dock-next" id="dock-next">
+          <input type="text" id="next-url" placeholder="YouTube URL…" autocomplete="off"/>
+          <button class="load-btn" id="load-btn" onclick="loadNextVideo()">Load</button>
         </div>
       </div>
-
-      <button class="play-btn" id="btn-play-pause" onclick="controlPlayPause()">▶</button>
-
-      <div class="dock-emojis">
-        <button class="emoji-btn" onclick="sendEmoji('😄')">😄</button>
-        <button class="emoji-btn" onclick="sendEmoji('😢')">😢</button>
-        <button class="emoji-btn" onclick="sendEmoji('😠')">😠</button>
-        <button class="emoji-btn" onclick="sendEmoji('❤️')">❤️</button>
-        <button class="emoji-btn" onclick="sendEmoji('😉')">😉</button>
+      <!-- Right group: chat toggle only -->
+      <div class="dock-right-group">
+        <!-- Mobile chat toggle -->
+        <button class="chat-toggle-btn" id="chat-toggle-btn" onclick="toggleMobileChat()">
+          💬<div class="chat-unread-dot" id="chat-dot"></div>
+        </button>
       </div>
-
-      <div class="dock-next">
-        <input type="text" id="next-url" placeholder="Next video URL…" autocomplete="off" />
-        <button class="load-btn" id="load-btn" onclick="loadNextVideo()">Load</button>
-      </div>
-
     </div>
   </div>
-
 </div><!-- /page-room -->
 
-
 <script>
-  /* ── State ─────────────────────────────── */
-  let socket=null, player=null, isHost=false, isSyncing=false, roomCode=null;
-  let peer=null, localStream=null, activeCall=null, isMuted=false, voiceReady=false;
+/* ══════ STATE ══════ */
+let socket=null, player=null, ytLoaded=false;
+let isHost=false, isSyncing=false, roomCode=null, myUsername='', roomMode='stream';
+let guestHasInteracted=false, heartbeatInt=null;
+let currentTab='watch', timerTotal=60;
+let gameRounds=1, participantCount=1;
+let participantNames=[]; // tracks all names for dropdown (#12)
+let membersDDOpen=false;
 
-  /* ── YouTube API ────────────────────────── */
-  function loadYouTubeAPI() {
-    return new Promise((resolve) => {
-      if (window.YT && window.YT.Player) { resolve(); return; }
-      const s = document.createElement('script');
-      s.src = 'https://www.youtube.com/iframe_api';
-      document.head.appendChild(s);
-      window.onYouTubeIframeAPIReady = resolve;
-    });
+// Voice state machine: idle | requesting | ready | error
+let voiceState='idle', localStream=null, isMuted=true;
+let peer=null, peerRetries=0;
+
+// Typing
+let wTyping=false, wTypingTimer=null, iTyping=false, iTypingTimer=null;
+
+// Canvas
+let drawCtx=null, drawCanvas=null, drawPenDown=false, localLastX=0, localLastY=0;
+let remoteLastNX=0, remoteLastNY=0;
+let strokeHistory=[], currentStroke=null;
+let remoteStrokeHistory=[], remoteCurrentStroke=null;
+let currentColor='#1a1a2e', currentBrushSize=5;
+
+// Game
+let isDrawer=false, scribbleActive=false, currentBlanksStr='';
+let ccDrawerTimer=null, ccWatcherTimer=null;
+
+// Watch invite / dormant tab
+let pendingInviteTimer=null;
+let pendingVideoState=null; // {videoId, timestamp, isPlaying}
+let mobileChatOpen=false;
+let latestHostTimestamp=0, latestHostPlaying=false; // tracks host position for sync
+let lastLocalSyncAt=0; // v22: timestamp of our last sync-event emission — suppresses heartbeat snap-back
+
+/* ══════ NAMES ══════ */
+const ADJ=['Swift','Calm','Bright','Bold','Clear','Keen','Noble','Sage','Warm','Vivid','Crisp','Pure','Quiet','Sharp','Steady','True','Brave','Witty','Clever','Gentle','Amber','Azure','Silver','Golden','Agile','Earnest','Focused','Loyal','Serene','Valiant'];
+const NOUN=['Eagle','River','Mind','Star','Oak','Peak','Dawn','Crest','Brook','Stone','Grove','Shore','Ridge','Flame','Wind','Tide','Falcon','Cedar','Ember','Kestrel','Lantern','Maple','Pebble','Summit','Torch','Valley','Zenith','Compass','Dune','Lark'];
+function randomizeName(){
+  const a=ADJ[Math.floor(Math.random()*ADJ.length)],n=NOUN[Math.floor(Math.random()*NOUN.length)];
+  const el=document.getElementById('input-username');if(el)el.value=a+n;
+}
+function genName(){return ADJ[Math.floor(Math.random()*ADJ.length)]+NOUN[Math.floor(Math.random()*NOUN.length)];}
+
+/* ══════ LANDING MODE ══════ */
+function setMode(m){
+  document.getElementById('mode-stream-btn').classList.toggle('active',m==='stream');
+  document.getElementById('mode-game-btn').classList.toggle('active',m==='game');
+  document.getElementById('stream-opts').classList.toggle('hidden',m!=='stream');
+  document.getElementById('game-opts').classList.toggle('hidden',m!=='game');
+}
+
+/* ══════ NOTIFICATIONS ══════ */
+// In-room: route to the current tab's chat as a system message (no floating overlays).
+// On landing page (no roomCode): show classic floating pill.
+function toast(msg, ch){
+  if(roomCode&&socket){
+    sysChat(ch||currentTab, msg);
+    return;
   }
+  const c=document.getElementById('toast-container');
+  const el=document.createElement('div');el.className='toast';el.textContent=msg;
+  c.appendChild(el);
+  setTimeout(()=>{el.classList.add('out');setTimeout(()=>el.remove(),380);},2500);
+}
+// Highlighted system message — used for game events (correct guess, pause, etc.)
+function sysEvent(ch, text){
+  const msgs=document.getElementById(ch==='watch'?'watch-msgs':'ink-msgs');
+  const typing=document.getElementById(ch==='watch'?'watch-typing':'ink-typing');
+  const d=document.createElement('div');d.className='system-msg system-event';d.textContent=text;
+  msgs.insertBefore(d,typing);msgs.scrollTop=msgs.scrollHeight;
+}
 
-  function createYouTubePlayer(videoId, startTime, startPlaying) {
-    return new Promise((resolve) => {
-      player = new YT.Player('yt-player', {
-        videoId,
-        playerVars: { autoplay: startPlaying?1:0, start: Math.floor(startTime), rel:0, modestbranding:1 },
-        events: {
-          onReady: (e) => { if (startTime>1) e.target.seekTo(startTime,true); resolve(); },
-          onStateChange: onPlayerStateChange,
-        }
-      });
-    });
+/* ══════ WATCH INVITE ══════ */
+function showInvite(videoId,requesterName){
+  // Store as pending video state (for dormant tab — req #6)
+  pendingVideoState={videoId, timestamp:0, isPlaying:false};
+  // Show pending dot on Watch ribbon button
+  document.getElementById('rb-watch').style.position='relative';
+  const dot=document.createElement('span');dot.id='watch-pending-dot';
+  dot.style.cssText='position:absolute;top:4px;right:4px;width:7px;height:7px;border-radius:50%;background:var(--gold);';
+  document.getElementById('rb-watch').appendChild(dot);
+
+  document.getElementById('wic-title').textContent=`${requesterName} started a video`;
+  const card=document.getElementById('watch-invite-card');
+  card.classList.add('show');
+  // Timer bar
+  const fill=document.getElementById('wic-fill');
+  fill.style.transition='none';fill.style.width='100%';
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{fill.style.transition='width 15s linear';fill.style.width='0%';}));
+  clearTimeout(pendingInviteTimer);
+  pendingInviteTimer=setTimeout(declineInvite,15000);
+}
+function acceptWatchInvite(){
+  document.getElementById('watch-invite-card').classList.remove('show');
+  clearTimeout(pendingInviteTimer);
+  removePendingDot();
+  pendingVideoState=null;
+  socket.emit('watch-accepted');
+}
+function declineInvite(){
+  document.getElementById('watch-invite-card').classList.remove('show');
+  clearTimeout(pendingInviteTimer);
+  // Keep pendingVideoState so Watch tab click will load it (req #6)
+}
+function removePendingDot(){const d=document.getElementById('watch-pending-dot');if(d)d.remove();}
+
+/* ══════ GAME CONFIG ══════ */
+function openGCM(){
+  document.getElementById('lb-overlay').classList.remove('open');
+  gameRounds=1;document.getElementById('rounds-val').textContent=1;
+  document.getElementById('gcm-bg').classList.add('open');
+}
+function closeGCM(){document.getElementById('gcm-bg').classList.remove('open');}
+function adjRounds(d){gameRounds=Math.max(1,Math.min(10,gameRounds+d));document.getElementById('rounds-val').textContent=gameRounds;}
+function confirmStart(){closeGCM();socket.emit('scribble-start',{roundsPerPlayer:gameRounds});}
+
+/* ══════ LEADERBOARD ══════ */
+const RE=['🥇','🥈','🥉','4️⃣','5️⃣','6️⃣'];
+const RT=['Undisputed Champion! 🎉','Silver & Sassy 😎','Bronze Bravado! 💪','So close… next time!','Participation star ⭐','Kept everyone honest 😂'];
+function showLB(scores,rounds){
+  const list=document.getElementById('lb-list');
+  list.innerHTML=(scores||[]).map((s,i)=>`
+    <div class="lb-row ${i===0?'gold-row':''}">
+      <span class="lb-rank">${RE[i]||'#'+(i+1)}</span>
+      <div style="flex:1;min-width:0;"><div class="lb-name">${esc(s.name)}</div><span class="lb-tag">${RT[i]||''}</span></div>
+      <span class="lb-pts">${s.score} pts</span>
+    </div>`).join('');
+  document.getElementById('lb-sub').textContent=`${rounds} round${rounds!==1?'s':''} completed`;
+  document.getElementById('lb-overlay').classList.add('open');
+}
+function closeLB(){document.getElementById('lb-overlay').classList.remove('open');}
+
+function updateLiveScores(scores){
+  const bar=document.getElementById('live-score-bar');
+  if(!scores||!scores.length){bar.classList.remove('show');return;}
+  bar.classList.add('show');
+  bar.innerHTML=scores.map((s,i)=>`<span class="score-pill ${i===0?'top':''}">${RE[i]||'·'} ${esc(s.name)}: <b>${s.score}</b></span>`).join('');
+}
+
+/* ══════ RIBBON / TABS ══════ */
+function ribbonWatch(){
+  // If there's a pending video and no player yet — dormant tab: auto-load
+  if(pendingVideoState && !ytLoaded){
+    loadPendingVideo();
+    return;
   }
+  if(roomMode==='game' && !ytLoaded){
+    const tray=document.getElementById('yt-tray');
+    tray.classList.toggle('open');
+    if(tray.classList.contains('open'))setTimeout(()=>document.getElementById('yt-tray-input').focus(),60);
+    return;
+  }
+  document.getElementById('yt-tray').classList.remove('open');
+  switchTab('watch');
+}
+function ribbonInkMind(){
+  document.getElementById('yt-tray').classList.remove('open');
+  switchTab('ink');
+}
+async function loadPendingVideo(){
+  if(!pendingVideoState)return;
+  const{videoId,timestamp,isPlaying}=pendingVideoState;
+  pendingVideoState=null;
+  removePendingDot();
+  document.getElementById('no-video').style.display='none';
+  ytLoaded=true;
+  if(!window.YT||!window.YT.Player)await loadYTAPI();
+  await createPlayer(videoId,timestamp);
+  if(isPlaying){isSyncing=true;player.playVideo();setTimeout(()=>{isSyncing=false;},200);guestHasInteracted=true;}
+  switchTab('watch');
+  toast('✓ Synced to video!');
+}
+async function loadFromTray(){
+  const url=document.getElementById('yt-tray-input').value.trim();
+  const vid=extractVid(url);
+  if(!vid){document.getElementById('yt-tray-input').style.borderColor='var(--red)';setTimeout(()=>document.getElementById('yt-tray-input').style.borderColor='',1400);return;}
+  document.getElementById('yt-tray').classList.remove('open');
+  document.getElementById('no-video').style.display='none';
+  ytLoaded=true;
+  if(!window.YT||!window.YT.Player)await loadYTAPI();
+  await createPlayer(vid,0);
+  if(isHost){socket.emit('change-video',{videoId:vid});startHeartbeat();}
+  switchTab('watch');
+  document.getElementById('yt-tray-input').value='';
+}
 
-  function onPlayerStateChange(event) {
-    if (isSyncing) return;
-    const t = player.getCurrentTime();
-    if (event.data === YT.PlayerState.PLAYING) {
-      document.getElementById('btn-play-pause').textContent = '⏸';
-      socket.emit('sync-event', { type:'play', timestamp:t });
-    } else if (event.data === YT.PlayerState.PAUSED) {
-      document.getElementById('btn-play-pause').textContent = '▶';
-      socket.emit('sync-event', { type:'pause', timestamp:t });
+// FIX 4: Adjust room-left height dynamically for mobile portrait.
+// Watch: auto-height (video 16:9 determines it).
+// InkMind: 56% of room-body height so canvas gets ample room.
+function adjustMobileLayout(tab){
+  const portrait=window.innerWidth<640&&window.innerHeight>window.innerWidth;
+  const rl=document.getElementById('room-left');
+  if(!rl)return;
+  if(portrait){
+    if(tab==='ink'){
+      const rb=document.querySelector('.room-body');
+      const bh=rb?rb.offsetHeight:Math.max(1,window.innerHeight-48-40-52);
+      rl.style.flex='0 0 '+Math.round(bh*0.56)+'px';
+    }else{
+      rl.style.flex='';  // auto — video aspect-ratio sizes it
     }
+  }else{
+    rl.style.flex='';  // landscape / desktop: CSS handles it
   }
+}
 
-  /* ── URL Parse ──────────────────────────── */
-  function extractVideoId(url) {
-    const m = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/);
-    return m ? m[1] : null;
+function switchTab(tab){
+  currentTab=tab;
+  // FIX 3: notify server which tab we're on (for game pause/resume)
+  if(socket&&roomCode)socket.emit('tab-change',{tab});
+  // FIX 4: adjust room-left height for mobile portrait
+  adjustMobileLayout(tab);
+  // Ribbon
+  document.getElementById('rb-watch').classList.toggle('active',tab==='watch');
+  document.getElementById('rb-ink').classList.toggle('active',tab==='ink');
+  document.getElementById('rb-chat').classList.toggle('active',false);
+  // Content
+  document.getElementById('tab-watch').classList.toggle('active',tab==='watch');
+  document.getElementById('tab-ink').classList.toggle('active',tab==='ink');
+  // Chat panels
+  document.getElementById('chat-watch').classList.toggle('hidden',tab!=='watch');
+  document.getElementById('chat-ink').classList.toggle('hidden',tab!=='ink');
+  // Stars
+  if(tab==='watch')document.getElementById('watch-star').classList.remove('show');
+  if(tab==='ink')document.getElementById('ink-star').classList.remove('show');
+  // Dock visibility
+  const inInk=tab==='ink';
+  
+  document.getElementById('dock-emojis').style.display=inInk?'none':'flex';
+  document.getElementById('dock-next').style.display=inInk?'none':'flex';
+  // Toolbar
+  document.getElementById('canvas-toolbar').style.display=(inInk&&scribbleActive&&isDrawer)?'flex':'none';
+  if(inInk){
+    // Layout must settle (adjustMobileLayout may have changed room-left height) before canvas resize
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{resizeCanvas();}));
   }
+  // Mobile chat: close when switching tabs
+  if(mobileChatOpen){closeMobileChat();}
+}
 
-  /* ── Emoji ──────────────────────────────── */
-  function sendEmoji(emoji) {
-    if (!socket) return;
-    socket.emit('send-emoji', { emoji });
-    spawnEmojiFloat(emoji, true);
-  }
+/* ══════ MOBILE CHAT ══════ */
+function toggleMobileChat(){
+  if(mobileChatOpen)closeMobileChat();else openMobileChat();
+}
+function openMobileChat(){
+  mobileChatOpen=true;
+  document.getElementById('room-right').classList.add('mob-open');
+  document.getElementById('rb-chat').classList.add('active');
+  document.getElementById('chat-dot').classList.remove('show');
+  // Show correct chat for current tab
+  document.getElementById('chat-watch').classList.toggle('hidden',currentTab!=='watch');
+  document.getElementById('chat-ink').classList.toggle('hidden',currentTab!=='ink');
+}
+function closeMobileChat(){
+  mobileChatOpen=false;
+  document.getElementById('room-right').classList.remove('mob-open');
+  document.getElementById('rb-chat').classList.remove('active');
+}
 
-  function spawnEmojiFloat(emoji, isSelf) {
-    const box = document.getElementById('player-box');
-    if (!box) return;
-    const el = document.createElement('div');
-    el.className = 'emoji-float'; el.textContent = emoji;
-    const bw = box.offsetWidth, bh = box.offsetHeight;
-    const x = isSelf
-      ? 16 + Math.random()*(bw*0.32)
-      : bw*0.58 + Math.random()*(bw*0.32);
-    el.style.left = Math.min(Math.max(8,x), bw-56)+'px';
-    el.style.top  = (bh-68)+'px';
-    box.appendChild(el);
-    setTimeout(()=>el.remove(), 2800);
-  }
+/* ══════ DOM READY ══════ */
+window.addEventListener('DOMContentLoaded',()=>{
+  const params=new URLSearchParams(window.location.search);
+  const roomFromUrl=params.get('room');
 
-  /* ── Playback ───────────────────────────── */
-  function controlPlayPause() {
-    if (!player) return;
-    player.getPlayerState()===YT.PlayerState.PLAYING ? player.pauseVideo() : player.playVideo();
-  }
-
-  /* ── Next Video ─────────────────────────── */
-  function loadNextVideo() {
-    const videoId = extractVideoId(document.getElementById('next-url').value.trim());
-    if (!videoId) { alert('Paste a valid YouTube URL first.'); return; }
-    socket.emit('change-video', { videoId });
-    document.getElementById('next-url').value = '';
-    const btn = document.getElementById('load-btn');
-    btn.textContent='✓ Done'; btn.classList.add('confirm');
-    setTimeout(()=>{ btn.textContent='Load'; btn.classList.remove('confirm'); }, 2000);
-  }
-
-  /* ── Voice ──────────────────────────────── */
-  async function initVoice() {
-    try {
-      localStream = await navigator.mediaDevices.getUserMedia({ audio:true, video:false });
-      localStream.getAudioTracks().forEach(t=>t.enabled=false);
-      isMuted = true;
-
-      peer = new Peer(undefined, { host:'0.peerjs.com', port:443, path:'/', secure:true, debug:0 });
-      peer.on('open', (peerId) => {
-        voiceReady=true;
-        setVoiceUI('muted','🔇 Muted','Tap mic to speak');
-        socket.emit('register-peer', { peerId });
-      });
-      peer.on('error', (err) => setVoiceUI('error','⚠️ No voice', err.type||''));
-      peer.on('call', (call) => {
-        call.answer(localStream); activeCall=call; attachAudio(call);
-        setVoiceUI('muted','🔇 Muted','Connected');
-      });
-    } catch(err) {
-      setVoiceUI('error','🚫 Blocked','Allow mic in browser');
-    }
-  }
-
-  function callHost(hostPeerId) {
-    if (!peer||!localStream) return;
-    const call = peer.call(hostPeerId, localStream);
-    activeCall=call; attachAudio(call);
-    call.on('close',()=>setVoiceUI('error','📵 Disconnected','Host left voice'));
-  }
-
-  function attachAudio(call) {
-    call.on('stream',(stream)=>{
-      let a = document.getElementById('remote-audio');
-      if (!a) { a=document.createElement('audio'); a.id='remote-audio'; a.autoplay=true; document.body.appendChild(a); }
-      a.srcObject=stream;
-      setVoiceUI('muted','🔇 Muted','Voice live ✓');
-    });
-  }
-
-  function toggleMic() {
-    if (!voiceReady||!localStream) { initVoice(); return; }
-    const btn = document.getElementById('mic-btn');
-    btn.classList.remove('ripple'); void btn.offsetWidth; btn.classList.add('ripple');
-    isMuted = !isMuted;
-    localStream.getAudioTracks().forEach(t=>t.enabled=!isMuted);
-    const wave = document.getElementById('voice-wave');
-    if (isMuted) {
-      btn.textContent='🔇'; btn.className='mic-btn muted'; wave.classList.add('off');
-      setVoiceUI('muted','🔇 Muted','Tap to speak');
-    } else {
-      btn.textContent='🎙️'; btn.className='mic-btn'; wave.classList.remove('off');
-      setVoiceUI('live','🎙️ Speaking','Tap to mute');
-    }
-  }
-
-  function setVoiceUI(state, lbl, sub) {
-    document.getElementById('voice-lbl').textContent=lbl;
-    document.getElementById('voice-sub').textContent=sub;
-    if (state==='error') {
-      const b=document.getElementById('mic-btn');
-      b.className='mic-btn muted'; b.textContent='🚫';
-    }
-  }
-
-  /* ── Socket ─────────────────────────────── */
-  function initSocket() {
-    socket = io();
-
-    socket.on('room-created', async ({ roomCode:code, videoId }) => {
-      roomCode=code; isHost=true;
-      showRoom(); setTopCode(code);
-      setRole('host','You control playback for the room.');
-      setSyncDot('live','Room ready');
-
-      const strip = document.getElementById('invite-strip');
-      strip.style.display='flex';
-      const codeEl = document.getElementById('invite-code');
-      codeEl.textContent=code;
-      codeEl.classList.remove('flash'); void codeEl.offsetWidth; codeEl.classList.add('flash');
-      document.getElementById('guests-badge').style.display='flex';
-
-      await loadYouTubeAPI();
-      await createYouTubePlayer(videoId, 0, false);
-      await initVoice();
-    });
-
-    socket.on('guest-joined', ({ guestCount:gc }) => {
-      document.getElementById('guest-count').textContent=gc;
-    });
-
-    socket.on('room-joined', async ({ videoId, timestamp, isPlaying }) => {
-      isHost=false; showRoom();
-      setRole('guest','Playback syncs with the room.');
-      setSyncDot('live','Synced');
-      await loadYouTubeAPI();
-      await createYouTubePlayer(videoId, timestamp, isPlaying);
-      await initVoice();
-    });
-
-    socket.on('host-peer-id', ({ peerId }) => {
-      if (!isHost) setTimeout(()=>callHost(peerId), 800);
-    });
-
-    socket.on('join-error', ({ message }) => showErr('err-join', message));
-
-    socket.on('sync-event', ({ type, timestamp }) => {
-      if (!player) return;
-      isSyncing=true;
-      const drift = Math.abs(player.getCurrentTime()-timestamp);
-      if (drift>1.5) player.seekTo(timestamp,true);
-      if (type==='play')  { player.playVideo();  document.getElementById('btn-play-pause').textContent='⏸'; }
-      if (type==='pause') { player.pauseVideo(); document.getElementById('btn-play-pause').textContent='▶'; }
-      if (type==='seek')  { player.seekTo(timestamp,true); }
-      flashSync();
-      setTimeout(()=>{ isSyncing=false; }, 600);
-    });
-
-    socket.on('receive-emoji', ({ emoji }) => spawnEmojiFloat(emoji, false));
-
-    socket.on('change-video', ({ videoId }) => {
-      if (!player) return;
-      isSyncing=true;
-      player.loadVideoById(videoId, 0);
-      document.getElementById('btn-play-pause').textContent='⏸';
-      flashSync();
-      setTimeout(()=>{ isSyncing=false; }, 800);
-    });
-
-    socket.on('host-disconnected', () => {
-      setSyncDot('off','Host left');
-      alert('The host left. Session ended.');
-    });
-  }
-
-  /* ── Create / Join ──────────────────────── */
-  async function createRoom() {
-    const videoId = extractVideoId(document.getElementById('input-url').value.trim());
-    if (!videoId) { showErr('err-create','Doesn\'t look like a valid YouTube URL.'); return; }
-    clearErr('err-create'); initSocket();
-    socket.emit('create-room', { videoId });
-  }
-
-  function joinRoom() {
-    const code = document.getElementById('input-code').value.trim().toUpperCase();
-    if (code.length<4) { showErr('err-join','Enter the 6-character room code.'); return; }
-    clearErr('err-join'); initSocket();
-    socket.emit('join-room', { roomCode:code });
-  }
-
-  function copyCode() {
-    navigator.clipboard.writeText(roomCode).then(()=>{
-      const btn=document.getElementById('copy-btn');
-      btn.textContent='✓ Copied!'; btn.classList.add('copied');
-      setTimeout(()=>{ btn.textContent='Copy Code'; btn.classList.remove('copied'); }, 2200);
-    });
-  }
-
-  /* ── UI Helpers ─────────────────────────── */
-  function showRoom() {
+  if(roomFromUrl){
+    // Show quick-join screen directly
     document.getElementById('page-landing').classList.add('hidden');
-    document.getElementById('page-room').classList.remove('hidden');
+    document.getElementById('quick-join').classList.remove('hidden');
+    document.getElementById('qj-code').textContent=roomFromUrl.toUpperCase();
+    document.getElementById('qj-username').focus();
+    document.getElementById('qj-username').addEventListener('keydown',e=>{if(e.key==='Enter')doQuickJoin();});
   }
-  function setTopCode(code) {
-    document.getElementById('topbar-code').textContent=code;
-    document.getElementById('code-chip').style.display='block';
-  }
-  function setRole(role,hint) {
-    const p=document.getElementById('role-pill');
-    p.className='role-pill '+role;
-    p.textContent=role==='host'?'Host':'Guest';
-    document.getElementById('role-hint').textContent=hint;
-  }
-  function setSyncDot(state,label) {
-    document.getElementById('sync-dot').className='sync-dot'+(state==='live'?' live':'');
-    document.getElementById('sync-label').textContent=label;
-  }
-  function flashSync() {
-    const box=document.getElementById('player-box');
-    box.classList.add('glow'); setTimeout(()=>box.classList.remove('glow'),500);
-    const dot=document.getElementById('sync-dot');
-    dot.style.background=var_gold; setTimeout(()=>{ dot.style.background=''; },240);
-  }
-  const var_gold = '#E1C179';
 
-  function showErr(id,msg)  { const e=document.getElementById(id); e.textContent=msg; e.classList.add('show'); }
-  function clearErr(id)     { const e=document.getElementById(id); e.textContent='';  e.classList.remove('show'); }
+  // Landing key bindings
+  const url=document.getElementById('input-url');
+  if(url){url.addEventListener('keydown',e=>{if(e.key==='Enter')createRoom();});}
+  const ic=document.getElementById('input-code');
+  if(ic){ic.addEventListener('keydown',e=>{if(e.key==='Enter')joinRoom();});}
+  const icg=document.getElementById('input-code-game');
+  if(icg){icg.addEventListener('keydown',e=>{if(e.key==='Enter')joinGameRoom();});}
 
-  /* ── Keyboard ───────────────────────────── */
-  document.addEventListener('DOMContentLoaded',()=>{
-    document.getElementById('input-url').addEventListener('keydown',  e=>{ if(e.key==='Enter') createRoom(); });
-    document.getElementById('input-code').addEventListener('keydown', e=>{ if(e.key==='Enter') joinRoom(); });
-    document.getElementById('next-url').addEventListener('keydown',   e=>{ if(e.key==='Enter') loadNextVideo(); });
-    document.addEventListener('keydown', e=>{
-      if(e.code==='Space' && e.target.tagName!=='INPUT') { e.preventDefault(); controlPlayPause(); }
+  // Room key bindings
+  document.getElementById('yt-tray-input').addEventListener('keydown',e=>{if(e.key==='Enter')loadFromTray();if(e.key==='Escape')document.getElementById('yt-tray').classList.remove('open');});
+  document.getElementById('next-url').addEventListener('keydown',e=>{if(e.key==='Enter')loadNextVideo();});
+  document.getElementById('watch-input').addEventListener('keydown',e=>{if(e.key==='Enter')sendChat('watch');});
+  document.getElementById('ink-input').addEventListener('keydown',e=>{if(e.key==='Enter')sendChat('ink');});
+  document.getElementById('watch-input').addEventListener('input',()=>onType('watch'));
+  document.getElementById('ink-input').addEventListener('input',()=>onType('ink'));
+
+  // Volume slider
+  const vs=document.getElementById('vol-slider');
+  vs.addEventListener('input',function(){
+    const vol=this.value/100;
+    document.querySelectorAll('audio').forEach(a=>a.volume=vol);
+    updateVolTrack(this);
+  });
+
+  // Brush size
+  document.getElementById('brush-size').addEventListener('input',function(){currentBrushSize=parseInt(this.value);});
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown',e=>{
+    if(e.target.tagName==='INPUT')return;
+    if(e.code==='Space'&&currentTab==='watch'){e.preventDefault();playPause();}
+    if((e.ctrlKey||e.metaKey)&&e.key==='z'){e.preventDefault();if(currentTab==='ink'&&isDrawer)undoStroke();}
+    if(e.key==='Escape'){
+      document.getElementById('yt-tray').classList.remove('open');
+      if(mobileChatOpen)closeMobileChat();
+    }
+  });
+
+  // Resize — cover all mobile viewport change triggers
+  window.addEventListener('resize',()=>{if(currentTab==='ink')resizeCanvas();});
+  if(window.visualViewport){
+    window.visualViewport.addEventListener('resize',()=>{
+      applyKeyboardLayout();
+      if(currentTab==='ink')setTimeout(resizeCanvas,100);
+    });
+  }
+  // Fix 3: also handle focus/blur on chat inputs for browsers where visualViewport doesn't fire
+  ['watch-input','ink-input'].forEach(id=>{
+    const inp=document.getElementById(id);
+    if(!inp)return;
+    inp.addEventListener('focus',()=>setTimeout(applyKeyboardLayout,300));
+    inp.addEventListener('blur',()=>setTimeout(applyKeyboardLayout,300));
+  });
+  window.addEventListener('orientationchange',()=>{
+    setTimeout(()=>{
+      adjustMobileLayout(currentTab);
+      applyKeyboardLayout();
+      if(currentTab==='ink')resizeCanvas();
+    },350);
+  });
+});
+
+function setPlayIcon(s){/* removed — play button removed; icon hidden via CSS */}
+// FIX 3: Force GPU compositor to re-rasterize the YT iframe frame — prevents black screen after repeated pause/play.
+// Strategy: use filter:brightness nudge (separate property from transform) to force a new compositor snapshot,
+// then restore. The permanent translate3d(0,0,0) in CSS keeps the GPU layer alive between repaints.
+function forceRepaint(){
+  try{
+    const iframe=player&&player.getIframe?player.getIframe():document.querySelector('#yt-player iframe');
+    if(!iframe)return;
+    // Nudge filter to force compositor snapshot (doesn't remove translate3d GPU layer)
+    iframe.style.filter='brightness(0.9999)';
+    requestAnimationFrame(()=>{
+      iframe.style.filter='';
+      // Maintain GPU layer: restore to base transform, not '' (which would remove will-change hint)
+      iframe.style.transform='translate3d(0,0,0.0001px)';
+      requestAnimationFrame(()=>{iframe.style.transform='translate3d(0,0,0)';});
+    });
+  }catch(e){}
+}
+// Re-apply GPU hints to the iframe element itself (CSS sets them on .player-box iframe, but YT API
+// creates the iframe after our styles run — need to re-apply explicitly after player creation)
+function pinIframeGPULayer(){
+  try{
+    const iframe=player&&player.getIframe?player.getIframe():document.querySelector('#yt-player iframe');
+    if(!iframe)return;
+    iframe.style.willChange='transform';
+    iframe.style.transform='translate3d(0,0,0)';
+    iframe.style.backfaceVisibility='hidden';
+    iframe.style.webkitBackfaceVisibility='hidden';
+  }catch(e){}
+}
+// Force repaint when tab becomes visible again (user returning from another app)
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&player){setTimeout(forceRepaint,80);setTimeout(forceRepaint,300);}});
+function updateVolTrack(s){const p=((s.value-s.min)/(s.max-s.min))*100;s.style.background=`linear-gradient(to right,var(--gold) ${p}%,var(--surface3) ${p}%)`;}
+/* ══════ YOUTUBE ══════ */
+function loadYTAPI(){
+  return new Promise(res=>{
+    if(window.YT&&window.YT.Player){res();return;}
+    const s=document.createElement('script');s.src='https://www.youtube.com/iframe_api';
+    document.head.appendChild(s);window.onYouTubeIframeAPIReady=res;
+  });
+}
+function createPlayer(videoId,startTime){
+  return new Promise(res=>{
+    document.getElementById('yt-player').innerHTML='';
+    isSyncing=true; // prevent onPlayerState from emitting sync-events while loading
+    player=new YT.Player('yt-player',{
+      videoId,
+      playerVars:{autoplay:0,start:Math.floor(startTime||0),rel:0,modestbranding:1,playsinline:1},
+      events:{
+        onReady:e=>{
+          if(startTime>1)e.target.seekTo(startTime,true);
+          // FIX 3: explicitly pin GPU layer on the newly-created iframe element
+          setTimeout(pinIframeGPULayer,200);
+          // Release isSyncing after a short settle — YT iframe fires state events during init
+          setTimeout(()=>{isSyncing=false;},1200);
+          res();
+        },
+        onStateChange:onPlayerState
+      }
     });
   });
+}
+function onPlayerState(ev){
+  if(isSyncing)return;
+  if(ev.data===YT.PlayerState.PLAYING){
+    guestHasInteracted=true;
+    if(socket&&roomCode){
+      const t=player.getCurrentTime();
+      socket.emit('sync-event',{type:'play',timestamp:t,sentAt:Date.now()});
+      lastLocalSyncAt=Date.now(); // protect from heartbeat snap-back
+    }
+    // v22 Fix #9: clear pause banner when local user plays
+    clearPauseBanner();
+  }else if(ev.data===YT.PlayerState.PAUSED){
+    if(socket&&roomCode){
+      const t=player.getCurrentTime();
+      socket.emit('sync-event',{type:'pause',timestamp:t,sentAt:Date.now()});
+      lastLocalSyncAt=Date.now(); // protect from heartbeat snap-back
+    }
+    // v22 Fix #9: show persistent pause banner for local user
+    showPauseBanner(myUsername);
+  }
+}
+function extractVid(url){const m=(url||'').match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/);return m?m[1]:null;}
+function startHeartbeat(){if(!isHost||heartbeatInt)return;heartbeatInt=setInterval(()=>{if(!player||!socket)return;socket.emit('heartbeat',{timestamp:player.getCurrentTime(),isPlaying:player.getPlayerState()===YT.PlayerState.PLAYING});},1000);}
+function stopHeartbeat(){if(heartbeatInt){clearInterval(heartbeatInt);heartbeatInt=null;}}
+function playPause(){
+  if(!player)return;
+  const playing=player.getPlayerState()===YT.PlayerState.PLAYING;
+  const t=player.getCurrentTime();
+  if(socket&&roomCode){socket.emit('sync-event',{type:playing?'pause':'play',timestamp:t,sentAt:Date.now()});}
+  lastLocalSyncAt=Date.now(); // protect from heartbeat snap-back
+  isSyncing=true;
+  if(playing){player.pauseVideo();}
+  else{player.playVideo();setTimeout(forceRepaint,100);setTimeout(forceRepaint,400);}
+  setTimeout(()=>{isSyncing=false;},800);
+}
+
+/* ══════ SYNC PLAY (#7) ══════ */
+function doSyncPlay(){
+  if(!player)return;
+  const sp=document.getElementById('sync-prompt');
+  if(sp)sp.classList.remove('show');
+  // Estimate current host position: last known timestamp + elapsed time if host was playing
+  const elapsed=latestHostPlaying?(Date.now()/1000-latestHostReceived):0;
+  const target=Math.max(0,latestHostTimestamp+elapsed);
+  isSyncing=true;
+  player.seekTo(target,true);
+  player.playVideo(); // safe: this IS a user gesture (button click)
+  
+  guestHasInteracted=true; // unlock heartbeat-driven sync for future drift corrections
+  setTimeout(()=>{isSyncing=false;},500);
+  toast('✓ Playing in sync with host!');
+}
+let latestHostReceived=Date.now()/1000; // timestamp when we last got a heartbeat
+async function loadNextVideo(){
+  const val=(document.getElementById('next-url').value||'').trim();
+  const vid=extractVid(val);
+  if(!vid){toast('⚠️ Invalid YouTube URL');return;}
+
+  // Clear input and show feedback
+  document.getElementById('next-url').value='';
+  const btn=document.getElementById('load-btn');
+  btn.textContent='✓';btn.classList.add('ok');
+  setTimeout(()=>{btn.textContent='Load';btn.classList.remove('ok');},2000);
+
+  // Broadcast to room — server will watch-sync all other users from timestamp 0
+  if(socket)socket.emit('change-video',{videoId:vid});
+
+  // Load locally for sender: destroy old player, create fresh at 0
+  ytLoaded=true;
+  document.getElementById('no-video').style.display='none';
+  
+
+  // Destroy existing player so we get a completely fresh instance at t=0
+  if(player){try{player.destroy();}catch(e){}player=null;}
+
+  await loadYTAPI();
+  switchTab('watch');
+
+  // Create fresh player — it will start cued at 0
+  await createPlayer(vid, 0);
+
+  // Play it (this is inside a user gesture chain from the Load button click)
+  isSyncing=true;
+  try{player.playVideo();}catch(e){}
+  
+  guestHasInteracted=true;
+  latestHostTimestamp=0;latestHostPlaying=true;latestHostReceived=Date.now()/1000;
+  setTimeout(()=>{isSyncing=false;},600);
+
+  if(isHost)startHeartbeat();
+  toast('▶ New video loading…');
+}
+function sendEmoji(emoji){if(!socket)return;socket.emit('send-emoji',{emoji});spawnEmoji(emoji,true);}
+// Fix 4: Emoji expand panel (mobile) — open/close
+let emojiPanelOpen=false;
+function toggleEmojiPanel(){
+  emojiPanelOpen=!emojiPanelOpen;
+  document.getElementById('emoji-panel').classList.toggle('hidden',!emojiPanelOpen);
+  document.getElementById('emoji-expand-btn').classList.toggle('open',emojiPanelOpen);
+}
+function sendEmojiPanel(emoji){
+  sendEmoji(emoji);
+  // Panel stays open — user can send multiple reactions; closes on outside click or expand-btn tap
+}
+// Close emoji panel on outside click
+document.addEventListener('click',e=>{
+  if(emojiPanelOpen&&!e.target.closest('#emoji-panel')&&!e.target.closest('#emoji-expand-btn')){
+    emojiPanelOpen=false;
+    document.getElementById('emoji-panel').classList.add('hidden');
+    document.getElementById('emoji-expand-btn').classList.remove('open');
+  }
+});
+function spawnEmoji(emoji,isSelf){
+  const box=document.getElementById('player-box');if(!box)return;
+  const el=document.createElement('div');el.className='emoji-float';el.textContent=emoji;
+  const bw=box.offsetWidth,bh=box.offsetHeight;
+  const x=isSelf?14+Math.random()*(bw*.3):bw*.55+Math.random()*(bw*.3);
+  el.style.left=Math.min(Math.max(6,x),bw-50)+'px';el.style.top=(bh-58)+'px';
+  box.appendChild(el);setTimeout(()=>el.remove(),2750);
+}
+
+/* ══════ VOICE (reliable state machine) ══════ */
+let _audioCtx=null, _wakeLock=null;
+
+// FIX 6: Keep the audio thread alive via a silent AudioContext node so the OS
+// doesn't suspend it when the screen turns off on mobile.
+function keepAudioAlive(stream){
+  try{
+    if(!_audioCtx||_audioCtx.state==='closed'){
+      _audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    }
+    // A silent destination chain prevents the browser from GC-ing the stream
+    const src=_audioCtx.createMediaStreamSource(stream);
+    const gain=_audioCtx.createGain();gain.gain.value=0; // silent — we don't want echo
+    src.connect(gain);gain.connect(_audioCtx.destination);
+    if(_audioCtx.state==='suspended')_audioCtx.resume().catch(()=>{});
+  }catch(e){console.warn('AudioContext keep-alive failed:',e);}
+}
+
+async function requestWakeLock(){
+  try{
+    if('wakeLock' in navigator){
+      _wakeLock=await navigator.wakeLock.request('screen');
+      // Re-acquire if released (e.g., tab hidden)
+      document.addEventListener('visibilitychange',async()=>{
+        if(_wakeLock&&document.visibilityState==='visible'){
+          try{_wakeLock=await navigator.wakeLock.request('screen');}catch(e){}
+        }
+      },{once:false});
+    }
+  }catch(e){/* not supported or denied — not critical */}
+}
+
+async function initVoice(){
+  if(voiceState==='requesting'||voiceState==='ready')return;
+  voiceState='requesting';updateMicUI();
+  try{
+    localStream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
+    // Always start muted
+    localStream.getAudioTracks().forEach(t=>t.enabled=false);
+    isMuted=true;voiceState='ready';updateMicUI();
+    keepAudioAlive(localStream);  // FIX 6: prevent OS from killing audio on screen-off
+    requestWakeLock();            // FIX 6: keep screen from fully suspending audio thread
+    startPeer();
+  }catch(e){
+    console.warn('Mic blocked:',e);
+    voiceState='error';updateMicUI();
+  }
+}
+function startPeer(){
+  if(peer){try{peer.destroy();}catch(e){}}
+  try{
+    peer=new Peer(undefined,{
+      host:'0.peerjs.com',port:443,path:'/',secure:true,debug:0,
+      config:{iceServers:[
+        {urls:'stun:stun.l.google.com:19302'},
+        {urls:'stun:stun1.l.google.com:19302'},
+        {urls:'stun:stun2.l.google.com:19302'}
+      ]}
+    });
+  }catch(e){updateMicUI();return;}
+  peer.on('open',pid=>{
+    peerRetries=0;
+    updateMicUI();
+    if(socket)socket.emit('register-peer',{peerId:pid});
+  });
+  // Answer any incoming call (mesh: any peer can call us)
+  peer.on('call',incomingCall=>{
+    const answer=()=>{incomingCall.answer(localStream);attachAudio(incomingCall);};
+    if(localStream){answer();}
+    else{let w=0;const wait=setInterval(()=>{w+=100;if(localStream){clearInterval(wait);answer();}else if(w>3000)clearInterval(wait);},100);}
+  });
+  peer.on('error',err=>{
+    const retryTypes=['network','server-error','socket-error','socket-closed','disconnected','unavailable-id'];
+    if(retryTypes.includes(err.type)){
+      if(peerRetries<5){peerRetries++;setTimeout(startPeer,Math.min(1200*peerRetries,5000));}
+    }
+  });
+  peer.on('disconnected',()=>{try{if(peer&&!peer.destroyed)peer.reconnect();}catch(e){peerRetries++;if(peerRetries<=5)setTimeout(startPeer,1200);}});
+}
+// Mesh: call a specific peer ID
+function callPeer(pid){
+  if(!pid||!localStream||!peer)return;
+  const tryCall=()=>{
+    if(peer&&peer.open){try{const c=peer.call(pid,localStream);if(c)attachAudio(c);}catch(e){}}
+    else if(peerRetries<25)setTimeout(tryCall,400);
+  };
+  setTimeout(tryCall,300);
+}
+function attachAudio(call){
+  call.on('stream',stream=>{
+    // Each call gets its own <audio> element
+    const id='ra-'+Math.random().toString(36).slice(2,8);
+    let a=document.createElement('audio');a.id=id;a.autoplay=true;a.playsInline=true;document.body.appendChild(a);
+    a.srcObject=stream;
+    const vs=document.getElementById('vol-slider');a.volume=vs?vs.value/100:1;
+    a.play().catch(()=>{});
+    call.on('close',()=>{const el=document.getElementById(id);if(el)el.remove();});
+  });
+}
+function toggleMic(){
+  if(voiceState==='idle'||voiceState==='error'){
+    voiceState='idle';initVoice();return;
+  }
+  if(voiceState!=='ready'||!localStream)return;
+  isMuted=!isMuted;
+  localStream.getAudioTracks().forEach(t=>t.enabled=!isMuted);
+  updateMicUI();
+  if(!isMuted)document.getElementById('voice-wave').classList.remove('off');
+  else document.getElementById('voice-wave').classList.add('off');
+}
+function updateMicUI(){
+  const btn=document.getElementById('mic-btn');
+  const txt=document.getElementById('mic-state-txt');
+  switch(voiceState){
+    case 'idle':
+      btn.className='mic-btn';btn.textContent='🎙️';btn.title='Enable mic';
+      if(txt)txt.textContent='Mic off';
+      break;
+    case 'requesting':
+      btn.className='mic-btn pending';btn.textContent='⏳';btn.title='Requesting mic…';
+      if(txt)txt.textContent='Setting up…';
+      break;
+    case 'ready':
+      btn.className='mic-btn'+(isMuted?' muted':'');
+      btn.textContent=isMuted?'🔇':'🎙️';btn.title=isMuted?'Unmute':'Mute';
+      if(txt)txt.textContent=isMuted?'Muted':'Speak now';
+      break;
+    case 'error':
+      btn.className='mic-btn muted';btn.textContent='🚫';btn.title='Mic blocked — click to retry';
+      if(txt)txt.textContent='Blocked';
+      break;
+  }
+}
+
+/* ══════ CHAT ══════ */
+function toggleQE(ch){document.getElementById(ch+'-qe').classList.toggle('open');}
+function insertEmoji(ch,e){const i=document.getElementById(ch+'-input');if(i){i.value+=e;i.focus();}}
+function onType(ch){
+  if(!socket)return;
+  const ch2=ch==='watch'?'watch':'ink';
+  if(ch==='watch'){if(!wTyping){wTyping=true;socket.emit('typing-start',{channel:'watch'});}clearTimeout(wTypingTimer);wTypingTimer=setTimeout(()=>{wTyping=false;socket.emit('typing-stop',{channel:'watch'});},1600);}
+  else{if(!iTyping){iTyping=true;socket.emit('typing-start',{channel:'scribble'});}clearTimeout(iTypingTimer);iTypingTimer=setTimeout(()=>{iTyping=false;socket.emit('typing-stop',{channel:'scribble'});},1600);}
+}
+function sendChat(ch){
+  const inp=document.getElementById(ch+'-input');
+  const text=(inp?.value||'').trim();if(!text||!socket)return;
+  if(ch==='ink'&&scribbleActive&&!isDrawer){
+    socket.emit('scribble-guess',{text});
+    // Do NOT locally append — server echoes wrong guesses back; right guesses show via correct-guess notif only
+  }else{
+    appendChat({ch,text,username:myUsername,self:true});
+    socket.emit('chat-message',{text,username:myUsername,channel:ch==='ink'?'scribble':'watch'});
+    // v23 Fix #3: Detect @mentions and notify only now that the message is sent
+    const mentionRegex=/@(\S+)/g;
+    let match;
+    while((match=mentionRegex.exec(text))!==null){
+      const targetName=match[1];
+      if(targetName!==myUsername&&participantNames.includes(targetName)){
+        socket.emit('mention',{targetName,fromName:myUsername,channel:ch==='ink'?'scribble':'watch'});
+      }
+    }
+  }
+  inp.value='';
+  document.getElementById(ch+'-qe').classList.remove('open');
+  if(ch==='watch'){wTyping=false;clearTimeout(wTypingTimer);socket.emit('typing-stop',{channel:'watch'});}
+  else{iTyping=false;clearTimeout(iTypingTimer);socket.emit('typing-stop',{channel:'scribble'});}
+}
+function appendChat({ch,text,username,self,special}){
+  const msgs=document.getElementById(ch==='watch'?'watch-msgs':'ink-msgs');
+  const typing=document.getElementById(ch==='watch'?'watch-typing':'ink-typing');
+  const star=document.getElementById(ch==='watch'?'watch-star':'ink-star');
+  const div=document.createElement('div');div.className='chat-msg '+(self?'self':'other');
+  const nm=document.createElement('div');nm.className='msg-name';nm.textContent=username;
+  const bub=document.createElement('div');bub.className='msg-bubble'+(special?' '+special:'');bub.textContent=text;
+  div.appendChild(nm);div.appendChild(bub);msgs.insertBefore(div,typing);msgs.scrollTop=msgs.scrollHeight;
+  // Show unread indicator if not on this tab / chat not visible
+  const chatVisible=(ch==='watch'&&currentTab==='watch'&&(mobileChatOpen||window.innerWidth>=640))
+                  ||(ch==='ink'&&currentTab==='ink'&&(mobileChatOpen||window.innerWidth>=640));
+  if(!chatVisible){
+    star.classList.add('show');
+    document.getElementById('chat-dot').classList.add('show');
+  }
+}
+function sysChat(ch,text){
+  const msgs=document.getElementById(ch==='watch'?'watch-msgs':'ink-msgs');
+  const typing=document.getElementById(ch==='watch'?'watch-typing':'ink-typing');
+  const d=document.createElement('div');d.className='system-msg';d.textContent=text;
+  msgs.insertBefore(d,typing);msgs.scrollTop=msgs.scrollHeight;
+}
+
+/* ══════ CANVAS ══════ */
+function initCanvas(){
+  drawCanvas=document.getElementById('scribble-canvas');
+  drawCtx=drawCanvas.getContext('2d');
+  drawCtx.lineCap='round';drawCtx.lineJoin='round';
+  drawCanvas.addEventListener('mousedown',md);drawCanvas.addEventListener('mousemove',mm);
+  drawCanvas.addEventListener('mouseup',mu);drawCanvas.addEventListener('mouseleave',mu);
+  drawCanvas.addEventListener('touchstart',ts,{passive:false});drawCanvas.addEventListener('touchmove',tm,{passive:false});
+  drawCanvas.addEventListener('touchend',te,{passive:false});drawCanvas.addEventListener('touchcancel',te,{passive:false});
+}
+const CANVAS_RATIO=16/9; // 16:9 — matches video aspect ratio, consistent across all devices
+function resizeCanvas(){
+  if(!drawCanvas)return;
+  const wrap=document.querySelector('.scribble-wrap');
+  if(!wrap)return;
+  const maxW=wrap.offsetWidth;
+  const maxH=wrap.offsetHeight;
+  if(!maxW||!maxH)return;
+  // Compute the largest 4:3 box that fits inside the wrap — letterboxed/pillarboxed as needed
+  let cw,ch;
+  if(maxW/maxH>CANVAS_RATIO){ch=maxH;cw=Math.floor(ch*CANVAS_RATIO);}
+  else{cw=maxW;ch=Math.floor(cw/CANVAS_RATIO);}
+  // Clamp to available space
+  cw=Math.min(cw,maxW);ch=Math.min(ch,maxH);
+  const area=document.getElementById('canvas-area');
+  if(area){area.style.width=cw+'px';area.style.height=ch+'px';}
+  if(drawCanvas.width===cw&&drawCanvas.height===ch)return;
+  // Save current drawing, resize, restore
+  let saved=null;
+  try{if(drawCanvas.width>0&&drawCanvas.height>0)saved=drawCtx.getImageData(0,0,drawCanvas.width,drawCanvas.height);}catch(e){}
+  drawCanvas.width=cw;drawCanvas.height=ch;
+  drawCtx.lineCap='round';drawCtx.lineJoin='round';
+  if(saved){try{drawCtx.putImageData(saved,0,0);}catch(e){}}
+}
+const evN=e=>{const r=drawCanvas.getBoundingClientRect();return{nx:(e.clientX-r.left)/r.width,ny:(e.clientY-r.top)/r.height};};
+const tchN=t=>{const r=drawCanvas.getBoundingClientRect();return{nx:(t.clientX-r.left)/r.width,ny:(t.clientY-r.top)/r.height};};
+const nPx=(nx,ny)=>({x:nx*drawCanvas.width,y:ny*drawCanvas.height});
+function md(e){if(!isDrawer||!scribbleActive)return;drawPenDown=true;currentStroke=[];const{nx,ny}=evN(e);const{x,y}=nPx(nx,ny);localLastX=x;localLastY=y;dot(x,y);const ev={type:'start',nx,ny,color:currentColor,size:currentBrushSize};currentStroke.push(ev);socket.emit('draw-event',ev);}
+function mm(e){if(!isDrawer||!scribbleActive||!drawPenDown)return;const{nx,ny}=evN(e);const{x,y}=nPx(nx,ny);line(localLastX,localLastY,x,y,currentColor,currentBrushSize);localLastX=x;localLastY=y;const ev={type:'move',nx,ny,color:currentColor,size:currentBrushSize};currentStroke.push(ev);socket.emit('draw-event',ev);}
+function mu(){if(!drawPenDown)return;drawPenDown=false;if(currentStroke?.length>0){strokeHistory.push(currentStroke);currentStroke=null;}if(socket&&scribbleActive)socket.emit('draw-event',{type:'end'});}
+function ts(e){e.preventDefault();if(!isDrawer||!scribbleActive)return;drawPenDown=true;currentStroke=[];const{nx,ny}=tchN(e.touches[0]);const{x,y}=nPx(nx,ny);localLastX=x;localLastY=y;dot(x,y);const ev={type:'start',nx,ny,color:currentColor,size:currentBrushSize};currentStroke.push(ev);socket.emit('draw-event',ev);}
+function tm(e){e.preventDefault();if(!isDrawer||!scribbleActive||!drawPenDown)return;const{nx,ny}=tchN(e.touches[0]);const{x,y}=nPx(nx,ny);line(localLastX,localLastY,x,y,currentColor,currentBrushSize);localLastX=x;localLastY=y;const ev={type:'move',nx,ny,color:currentColor,size:currentBrushSize};currentStroke.push(ev);socket.emit('draw-event',ev);}
+function te(e){e.preventDefault();if(!drawPenDown)return;drawPenDown=false;if(currentStroke?.length>0){strokeHistory.push(currentStroke);currentStroke=null;}if(socket&&scribbleActive)socket.emit('draw-event',{type:'end'});}
+function dot(x,y){drawCtx.beginPath();drawCtx.arc(x,y,currentBrushSize/2,0,Math.PI*2);drawCtx.fillStyle=currentColor;drawCtx.fill();}
+function line(x1,y1,x2,y2,col,sz){drawCtx.beginPath();drawCtx.moveTo(x1,y1);drawCtx.lineTo(x2,y2);drawCtx.strokeStyle=col;drawCtx.lineWidth=sz;drawCtx.lineCap='round';drawCtx.lineJoin='round';drawCtx.stroke();}
+function undoStroke(){
+  if(!isDrawer||!scribbleActive||!strokeHistory.length)return;
+  strokeHistory.pop();drawCtx.clearRect(0,0,drawCanvas.width,drawCanvas.height);
+  for(const s of strokeHistory){let lx=0,ly=0;for(const ev of s){if(ev.type==='start'){const{x,y}=nPx(ev.nx,ev.ny);dot(x,y);lx=ev.nx;ly=ev.ny;}else if(ev.type==='move'){const{x:x1,y:y1}=nPx(lx,ly),{x:x2,y:y2}=nPx(ev.nx,ev.ny);line(x1,y1,x2,y2,ev.color,ev.size);lx=ev.nx;ly=ev.ny;}}}
+  socket.emit('canvas-undo');
+}
+function clearCanvas(){if(!drawCtx)return;strokeHistory=[];drawCtx.clearRect(0,0,drawCanvas.width,drawCanvas.height);if(socket)socket.emit('canvas-clear');}
+function pickColor(el){document.querySelectorAll('.color-swatch').forEach(s=>s.classList.remove('selected'));el.classList.add('selected');currentColor=el.dataset.color;}
+function rTrack(data){
+  if(data.type==='start')remoteCurrentStroke=[data];
+  else if(data.type==='move'&&remoteCurrentStroke)remoteCurrentStroke.push(data);
+  else if(data.type==='end'&&remoteCurrentStroke){remoteStrokeHistory.push(remoteCurrentStroke);remoteCurrentStroke=null;}
+}
+function redrawRemote(){
+  if(!drawCtx)return;drawCtx.clearRect(0,0,drawCanvas.width,drawCanvas.height);
+  for(const s of remoteStrokeHistory){let lx=0,ly=0;for(const ev of s){if(ev.type==='start'){const{x,y}=nPx(ev.nx,ev.ny);drawCtx.beginPath();drawCtx.arc(x,y,ev.size/2,0,Math.PI*2);drawCtx.fillStyle=ev.color;drawCtx.fill();lx=ev.nx;ly=ev.ny;}else if(ev.type==='move'){const{x:x1,y:y1}=nPx(lx,ly),{x:x2,y:y2}=nPx(ev.nx,ev.ny);line(x1,y1,x2,y2,ev.color,ev.size);lx=ev.nx;ly=ev.ny;}}}
+}
+
+/* ══════ COUNTDOWN ══════ */
+function startCC(elId,secs){
+  stopCC();let rem=secs;
+  const el=document.getElementById(elId);if(!el)return;el.textContent=rem;
+  const t=setInterval(()=>{rem--;if(el){el.textContent=rem;el.classList.toggle('urgent',rem<=3);}if(rem<=0)clearInterval(t);},1000);
+  if(elId==='cc-drawer')ccDrawerTimer=t;else ccWatcherTimer=t;
+}
+function stopCC(){if(ccDrawerTimer){clearInterval(ccDrawerTimer);ccDrawerTimer=null;}if(ccWatcherTimer){clearInterval(ccWatcherTimer);ccWatcherTimer=null;}}
+
+/* ══════ OVERLAYS ══════ */
+function showOv(id){
+  ['ov-lobby','ov-choice','ov-choosing','ov-round-end'].forEach(oid=>{
+    document.getElementById(oid)?.classList.toggle('hidden',oid!==id);
+  });
+}
+function hideAllOv(){['ov-lobby','ov-choice','ov-choosing','ov-round-end'].forEach(id=>document.getElementById(id)?.classList.add('hidden'));}
+
+function updateTimer(v){
+  document.getElementById('timer-ring').classList.remove('hidden');
+  const fill=document.getElementById('timer-fill'),text=document.getElementById('timer-text');
+  // circumference = 2π×16 ≈ 100.5, using 100 for simplicity
+  const circ=100.5;
+  fill.style.strokeDashoffset=circ*(1-v/timerTotal);
+  text.textContent=v;
+  const u=v<=10;fill.classList.toggle('urgent',u);text.classList.toggle('urgent',u);
+}
+
+/* ══════ COPY LINK ══════ */
+function getURL(){return window.location.origin+'/?room='+roomCode;}
+function copyLink(){navigator.clipboard.writeText(getURL()).then(()=>{const btn=document.getElementById('copy-btn');btn.textContent='✓ Copied!';btn.classList.add('copied');setTimeout(()=>{btn.textContent='Copy Link';btn.classList.remove('copied');},2400);});}
+function copyChip(){
+  navigator.clipboard.writeText(getURL()).then(()=>{
+    const c=document.getElementById('code-chip');
+    const orig=c.innerHTML;
+    c.innerHTML='✓ Room link copied';
+    c.classList.add('copied');
+    setTimeout(()=>{c.innerHTML=orig;c.classList.remove('copied');},3000);
+  });
+}
+
+/* ══════ CREATE / JOIN ══════ */
+function getUN(){const el=document.getElementById('input-username');let v=(el?.value||'').trim();if(!v){v=genName();if(el)el.value=v;}return v;}
+async function createRoom(){
+  const username=getUN(),videoId=extractVid((document.getElementById('input-url')?.value||'').trim());
+  if(!videoId){showErr('err-create',"Invalid YouTube URL.");return;}
+  myUsername=username;clearErr('err-create');initSocket();socket.emit('create-room',{videoId,username,mode:'stream'});
+}
+function joinRoom(){
+  const username=getUN(),code=(document.getElementById('input-code')?.value||'').trim().toUpperCase();
+  if(code.length<4){showErr('err-join','Enter the 6-character room code.');return;}
+  myUsername=username;clearErr('err-join');initSocket();socket.emit('join-room',{roomCode:code,username});
+}
+function createGameRoom(){const username=getUN();myUsername=username;clearErr('err-create-game');initSocket();socket.emit('create-room',{videoId:null,username,mode:'game'});}
+function joinGameRoom(){
+  const username=getUN(),code=(document.getElementById('input-code-game')?.value||'').trim().toUpperCase();
+  if(code.length<4){showErr('err-join-game','Enter the 6-character room code.');return;}
+  myUsername=username;clearErr('err-join-game');initSocket();socket.emit('join-room',{roomCode:code,username});
+}
+function doQuickJoin(){
+  const params=new URLSearchParams(window.location.search);
+  const code=(params.get('room')||'').trim().toUpperCase();
+  const nameEl=document.getElementById('qj-username');
+  let username=(nameEl?.value||'').trim();
+  if(!username){username=genName();if(nameEl)nameEl.value=username;}
+  if(!code){const e=document.getElementById('qj-err');e.textContent='Missing room code.';e.classList.add('show');return;}
+  myUsername=username;
+  document.getElementById('quick-join').classList.add('hidden');
+  document.getElementById('page-room').classList.remove('hidden');
+  // Show room but with no-video until synced
+  document.getElementById('no-video').style.display='flex';
+  setTopCode(code);setUserBadge(username);
+  initSocket();
+  socket.emit('join-room',{roomCode:code,username});
+}
+
+/* ══════ UI HELPERS ══════ */
+function showRoom(){
+  document.getElementById('page-landing').classList.add('hidden');
+  document.getElementById('quick-join').classList.add('hidden');
+  document.getElementById('page-room').classList.remove('hidden');
+}
+function setTopCode(c){roomCode=c||roomCode;document.getElementById('topbar-code').textContent=c||roomCode;document.getElementById('code-chip').classList.remove('hidden');}
+// #1: username shown in chat header, not topbar
+function setUserBadge(name){
+  myUsername=name||myUsername;
+  const w=document.getElementById('user-name-watch');if(w)w.textContent=name||'';
+  const k=document.getElementById('user-name-ink');if(k)k.textContent=name||'';
+}
+// #5: update both watch and ink role badges
+function setRole(role){
+  const label=role==='host'?'🎬 Host':'🙋 Guest';
+  ['role-badge','role-badge-ink'].forEach(id=>{
+    const el=document.getElementById(id);if(el)el.textContent=label;
+  });
+}
+// Update members in both watch and ink panels
+function setMembers(names){
+  participantNames=names||[];
+  participantCount=participantNames.length;
+  ['members-count','members-count-ink'].forEach(id=>{
+    const el=document.getElementById(id);if(el)el.textContent=participantCount;
+  });
+  const html=participantNames.map((n,i)=>{
+    const isMe=n===myUsername;
+    const isH=i===0;
+    // Names are clickable — inserts @mention into active chat input
+    return `<div class="members-dd-item${isH?' is-host':''}" onclick="mentionUser('${esc(n)}')" style="cursor:pointer">`
+      +`${isH?'':'👤 '}<span>${esc(n)}</span>${isMe?'<span class="you-tag">you</span>':''}</div>`;
+  }).join('');
+  ['members-dd','members-dd-ink'].forEach(id=>{
+    const el=document.getElementById(id);if(el)el.innerHTML=html;
+  });
+  checkLobbyMinPlayers();
+}
+
+// Fix 3: Mention a user — insert @name into the current tab's chat input and focus it
+function mentionUser(name){
+  // Close dropdown
+  ['members-dd','members-dd-ink'].forEach(id=>{
+    const el=document.getElementById(id);if(el)el.style.display='none';
+  });
+  const inp=document.getElementById(currentTab==='ink'?'ink-input':'watch-input');
+  if(!inp)return;
+  const cur=inp.value;
+  inp.value=(cur?cur+' ':'')+'@'+name+' ';
+  inp.focus();
+  // v23: Don't emit mention here — wait until the message is actually sent (handled in sendChat)
+}
+// Members dropdown — position:fixed escapes overflow:hidden on .chat-panel
+function toggleMembersDD(panel){
+  const btnId  = panel==='ink' ? 'members-btn-ink' : 'members-btn';
+  const ddId   = panel==='ink' ? 'members-dd-ink'  : 'members-dd';
+  const otherId= panel==='ink' ? 'members-dd'      : 'members-dd-ink';
+  const dd=document.getElementById(ddId);
+  const other=document.getElementById(otherId);
+  // Always close the other panel
+  if(other) other.style.display='none';
+  const isOpen=(dd.style.display==='block');
+  if(isOpen){ dd.style.display='none'; return; }
+  // Position below the button using fixed coords (escapes overflow:hidden)
+  const btn=document.getElementById(btnId);
+  const r=btn.getBoundingClientRect();
+  dd.style.top  = (r.bottom+4)+'px';
+  dd.style.left = Math.max(4, r.right-150)+'px'; // right-align, min 4px from edge
+  dd.style.display='block';
+}
+// Close both dropdowns when clicking outside either members-wrap
+document.addEventListener('click',e=>{
+  if(!e.target.closest('#members-wrap')&&!e.target.closest('#members-wrap-ink')){
+    const w=document.getElementById('members-dd');
+    const k=document.getElementById('members-dd-ink');
+    if(w)w.style.display='none';
+    if(k)k.style.display='none';
+  }
+});
+// Fix #6: gating — show share when solo, show start when 2+
+function checkLobbyMinPlayers(){
+  const enough=participantCount>=2;
+  const share=document.getElementById('lobby-share');
+  const startBtn=document.getElementById('start-btn');
+  const waitMsg=document.getElementById('wait-msg');
+  if(share)share.style.display=enough?'none':'block';
+  if(startBtn&&waitMsg){
+    if(enough){
+      startBtn.classList.remove('hidden');
+      waitMsg.classList.add('hidden');
+    }else{
+      startBtn.classList.add('hidden');
+      waitMsg.classList.add('hidden');
+    }
+  }
+}
+function flashSync(){const box=document.getElementById('player-box');if(!box)return;box.classList.add('glow');setTimeout(()=>box.classList.remove('glow'),500);}
+
+/* Fix 5: Event notification pill that floats inside the chat panel */
+let _chatNotifTimer=null;
+function showChatNotif(msg){
+  const el=document.getElementById('chat-notif');if(!el)return;
+  if(_chatNotifTimer)clearTimeout(_chatNotifTimer);
+  el.textContent=msg;
+  el.classList.remove('out');el.classList.add('show');
+  _chatNotifTimer=setTimeout(()=>{
+    el.classList.add('out');
+    setTimeout(()=>{el.classList.remove('show','out');},280);
+  },3000);
+}
+
+/* v22 Fix #9: Persistent pause banner in chat — stays until play resumes */
+function showPauseBanner(username){
+  clearPauseBanner(); // remove any existing one first
+  const msgs=document.getElementById('watch-msgs');
+  const typing=document.getElementById('watch-typing');
+  if(!msgs)return;
+  const d=document.createElement('div');
+  d.className='system-msg system-event';
+  d.id='pause-banner';
+  d.textContent=`⏸ ${username} paused the video`;
+  msgs.insertBefore(d,typing);
+  msgs.scrollTop=msgs.scrollHeight;
+}
+function clearPauseBanner(){
+  const el=document.getElementById('pause-banner');
+  if(el)el.remove();
+}
+
+/* Fix 6: Keyboard-aware layout — when keyboard opens in portrait, shrink room-right
+   so the video/canvas (room-left) stays fully visible at the top.
+   Strategy: room-left is flex:0 0 auto (sized by content), so we clamp room-right's
+   max-height to whatever space is left after the keyboard appears. */
+function applyKeyboardLayout(){
+  if(!window.visualViewport)return;
+  const portrait=window.innerWidth<640&&window.innerHeight>window.innerWidth;
+  const rr=document.getElementById('room-right');
+  const rl=document.getElementById('room-left');
+  if(!rr||!rl)return;
+  if(!portrait){rr.style.maxHeight='';return;}
+  const vvh=Math.round(window.visualViewport.height);
+  const kbdH=Math.max(0,window.innerHeight-vvh);
+  if(kbdH>80){
+    // Keyboard open — room-left stays its natural height, room-right gets remaining space
+    const rlH=rl.offsetHeight;
+    const topbarH=document.querySelector('.topbar')?.offsetHeight||48;
+    const ribbonH=document.querySelector('.ribbon')?.offsetHeight||40;
+    const dockH=document.querySelector('.dock')?.offsetHeight||52;
+    const usedH=topbarH+ribbonH+rlH+dockH;
+    const remaining=Math.max(vvh-usedH,80); // at least 80px for chat
+    rr.style.maxHeight=remaining+'px';
+    document.getElementById('page-room').classList.add('kbd-open');
+  }else{
+    rr.style.maxHeight='';
+    document.getElementById('page-room').classList.remove('kbd-open');
+    if(currentTab==='ink')requestAnimationFrame(()=>requestAnimationFrame(resizeCanvas));
+  }
+}
+function showErr(id,msg){const e=document.getElementById(id);if(!e)return;e.textContent=msg;e.classList.add('show');}
+function clearErr(id){const e=document.getElementById(id);if(!e)return;e.textContent='';e.classList.remove('show');}
+function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+
+/* ══════ SOCKET ══════ */
+function initSocket(){
+  if(socket)return;
+  socket=io();
+
+  socket.on('room-created',async({roomCode:code,videoId,mode,participants})=>{
+    roomCode=code;isHost=true;roomMode=mode||'stream';participantCount=1;
+    showRoom();setTopCode(code);setRole('host');setUserBadge(myUsername);
+    setMembers(participants||[myUsername]);
+    // Show start button for host
+    document.getElementById('start-btn').classList.add('hidden'); // gated by checkLobbyMinPlayers
+    document.getElementById('wait-msg').classList.add('hidden');
+    checkLobbyMinPlayers();
+
+    if(mode==='game'){
+      document.getElementById('no-video').style.display='flex';ytLoaded=false;switchTab('ink');
+    }else{
+      ytLoaded=true;
+      await loadYTAPI();await createPlayer(videoId,0);startHeartbeat();switchTab('watch');
+    }
+    initCanvas();initVoice();
+  });
+
+  socket.on('guest-joined',({guestCount:gc,guestName,participants})=>{
+    participantCount=gc+1;
+    if(participants)setMembers(participants);
+    showChatNotif(`👋 ${guestName} joined`);
+    sysChat('watch',`👋 ${guestName} joined`);
+  });
+
+  socket.on('room-joined',async({roomCode:serverCode,videoId,mode,timestamp,isPlaying,hostName,guestCount:gc,participants,scribbleActive:sActive,scribble})=>{
+    // Always use the code the server confirms — fixes playPause() guard (socket&&roomCode)
+    roomCode=serverCode||roomCode||'';
+    isHost=false;roomMode=mode||'stream';participantCount=gc+1;
+    showRoom();setRole('guest');setUserBadge(myUsername);
+    setTopCode(roomCode);
+    if(participants)setMembers(participants);
+    sysChat('watch',`Joined ${hostName}'s room`);
+    // Gated start button
+    document.getElementById('start-btn').classList.add('hidden');
+    document.getElementById('wait-msg').classList.add('hidden');
+    checkLobbyMinPlayers();
+
+    if(mode==='game'){
+      document.getElementById('no-video').style.display='flex';ytLoaded=false;switchTab('ink');
+    }else if(videoId){
+      // CRITICAL FIX #7: Load player, seek to host position, then prompt user to tap-to-play
+      // (browser autoplay policy blocks programmatic play after async chain; tap-to-play always works)
+      ytLoaded=true;
+      
+      document.getElementById('no-video').style.display='none';
+      // Store host state so doSyncPlay() seeks accurately
+      latestHostTimestamp=timestamp||0;
+      latestHostPlaying=isPlaying;
+      latestHostReceived=Date.now()/1000;
+      await loadYTAPI();
+      // Create player seeked to host position (cued but not playing)
+      await createPlayer(videoId, latestHostTimestamp);
+      // Refresh received-time after async load — keeps elapsed estimate in doSyncPlay accurate
+      latestHostReceived=Date.now()/1000;
+      switchTab('watch');
+      if(isPlaying){
+        // Show tap-to-play prompt — this is a user gesture so playVideo() will succeed
+        const sp=document.getElementById('sync-prompt');
+        if(sp)sp.classList.add('show');
+      }else{
+        // v22 Fix #4: Host is paused — explicitly force-pause after creation.
+        // YouTube iframe can auto-play briefly despite autoplay:0; this kills it immediately.
+        isSyncing=true;
+        try{player.pauseVideo();}catch(e){}
+        // Also re-pause after a short delay to catch any deferred auto-play from YouTube
+        setTimeout(()=>{try{player.pauseVideo();}catch(e){}},300);
+        setTimeout(()=>{try{player.pauseVideo();}catch(e){}},800);
+        setTimeout(()=>{isSyncing=false;},1500);
+      }
+    }else{
+      document.getElementById('no-video').style.display='flex';switchTab('watch');
+    }
+    initCanvas();initVoice();
+  });
+
+  socket.on('user-presence',({username,action,guestCount:gc,participants})=>{
+    // v23 Fix #2: host already gets join notification via guest-joined — skip duplicate
+    if(action==='joined'&&isHost){
+      if(participants)setMembers(participants);
+      return;
+    }
+    const msg=action==='joined'?`👋 ${username} joined`:`${username} left`;
+    showChatNotif(msg);
+    sysChat('watch',msg);
+    if(participants)setMembers(participants);
+    else if(gc!==undefined){participantCount=gc+1;}
+  });
+
+  // Mesh voice: call all existing peers when we join
+  socket.on('existing-peers',({peerIds})=>{
+    // Small delay so our own player is settled before establishing WebRTC streams
+    setTimeout(()=>peerIds.forEach(pid=>callPeer(pid)), 400);
+  });
+  // Mesh voice: call any new peer that joins after us — delay to prevent YT player blackout
+  socket.on('new-peer',({peerId})=>{
+    setTimeout(()=>callPeer(peerId), 400);
+  });
+  socket.on('join-error',({message})=>{
+    // Show inline error on landing page (both stream + game tabs)
+    showErr('err-join',message);showErr('err-join-game',message);
+    // If we're in the deep-link quick-join flow, show that error too
+    const qje=document.getElementById('qj-err');
+    if(qje){qje.textContent=message;qje.classList.add('show');}
+    // Only restore quick-join if page-room was shown (deep-link flow)
+    // For normal landing page joins, page-room was never shown — so just ensure landing stays visible
+    const pr=document.getElementById('page-room');
+    const pl=document.getElementById('page-landing');
+    if(pr&&!pr.classList.contains('hidden')){
+      // We navigated away (deep-link) — go back
+      pr.classList.add('hidden');
+      document.getElementById('quick-join').classList.remove('hidden');
+    } else if(pl){
+      // Normal flow: landing page is already visible, nothing to restore
+      pl.classList.remove('hidden');
+    }
+  });
+
+  socket.on('sync-event',({type,timestamp,sentAt,username})=>{
+    if(!player)return;
+    const lag=sentAt?Math.min((Date.now()-sentAt)/1000,0.4):0;
+    const adjTs=type==='play'?timestamp+lag:timestamp;
+    // Long isSyncing window (1200ms) — prevents onPlayerState re-emit and
+    // blocks the next heartbeat from overriding this state while YT resolves the command
+    isSyncing=true;
+    if(Math.abs(player.getCurrentTime()-adjTs)>0.3)player.seekTo(adjTs,true);
+    if(type==='play'){
+      player.playVideo();guestHasInteracted=true;
+      setTimeout(forceRepaint,100);setTimeout(forceRepaint,400);
+      if(username)showChatNotif(`▶ ${username} played`);
+      // v22 Fix #9: remove persistent pause banner on play
+      clearPauseBanner();
+    }
+    if(type==='pause'){
+      player.pauseVideo();
+      if(username){
+        showChatNotif(`⏸ ${username} paused`);
+        // v22 Fix #9: show persistent pause banner until play
+        showPauseBanner(username);
+      }
+    }
+    flashSync();
+    setTimeout(()=>{isSyncing=false;},1200);
+  });
+  socket.on('heartbeat',({timestamp,isPlaying})=>{
+    latestHostTimestamp=timestamp;
+    latestHostPlaying=isPlaying;
+    latestHostReceived=Date.now()/1000;
+    if(!player||isHost)return;
+    // Skip all state changes while isSyncing — prevents heartbeat overriding a just-applied sync-event
+    if(isSyncing)return;
+    // v22 Fix #1: Skip corrections if WE recently emitted a sync-event (seek/play/pause).
+    // The heartbeat may carry a stale host position that hasn't settled to our seek target yet.
+    if(Date.now()-lastLocalSyncAt<3500)return;
+    if(Math.abs(player.getCurrentTime()-timestamp)>0.5){isSyncing=true;player.seekTo(timestamp,true);flashSync();setTimeout(()=>{isSyncing=false;},400);}
+    const myPlay=player.getPlayerState()===YT.PlayerState.PLAYING;
+    if(isPlaying&&!myPlay&&guestHasInteracted){isSyncing=true;player.playVideo();setTimeout(forceRepaint,100);setTimeout(()=>{isSyncing=false;},400);}
+    else if(!isPlaying&&myPlay){isSyncing=true;player.pauseVideo();setTimeout(()=>{isSyncing=false;},400);}
+  });
+  socket.on('mention',({fromName,channel})=>{
+    // Only shown to the target (server only emits to target socket)
+    const ch=channel==='scribble'?'ink':'watch';
+    showChatNotif(`💬 ${fromName} mentioned you`);
+    sysChat(ch,`💬 ${fromName} mentioned you`);
+  });
+  socket.on('receive-emoji',({emoji})=>spawnEmoji(emoji,false));
+
+  // Watch invite (req #1 / #6)
+  socket.on('watch-invite',({videoId,requesterName})=>{
+    // Always store as pending (dormant tab support)
+    pendingVideoState={videoId,timestamp:0,isPlaying:false};
+    showInvite(videoId,requesterName);
+  });
+  socket.on('watch-sync',async({videoId,timestamp,isPlaying})=>{
+    if(!videoId)return;
+    ytLoaded=true;
+    document.getElementById('no-video').style.display='none';
+    
+    latestHostTimestamp=timestamp||0;latestHostPlaying=isPlaying;latestHostReceived=Date.now()/1000;
+    // Destroy old player so new video always starts clean
+    if(player){try{player.destroy();}catch(e){}player=null;}
+    if(!window.YT||!window.YT.Player)await loadYTAPI();
+    await createPlayer(videoId,latestHostTimestamp);
+    switchTab('watch');removePendingDot();
+    if(isPlaying){
+      // Show sync-prompt — user tap required due to browser autoplay policy
+      const sp=document.getElementById('sync-prompt');if(sp)sp.classList.add('show');
+    }else{
+      toast('✓ New video loaded!');
+    }
+  });
+  // change-video: server now emits watch-sync directly to recipients; sender handles locally in loadNextVideo()
+
+  socket.on('chat-message',({text,username,channel,fromSelf_id})=>{
+    // For scribble (guess) channel: show self's echoed guesses (wrong ones). For watch: suppress self (already shown locally).
+    if(channel!=='scribble'&&fromSelf_id===socket.id)return;
+    const ch=channel==='scribble'?'ink':'watch';
+    appendChat({ch,text,username,self:(fromSelf_id===socket.id)});
+  });
+  // v22 Fix #8: Replay chat history for new joiners so messages are synced
+  socket.on('chat-history',({messages})=>{
+    if(!messages||!messages.length)return;
+    messages.forEach(({text,username,channel})=>{
+      const ch=channel==='scribble'?'ink':'watch';
+      appendChat({ch,text,username,self:(username===myUsername)});
+    });
+  });
+  socket.on('typing-update',({channel,names})=>{
+    const ch=channel==='scribble'?'ink':'watch';
+    const ind=document.getElementById(ch+'-typing');
+    const nameEl=document.getElementById(ch+'-type-name');
+    // v22 Fix #5: filter out self — no need to tell the user they're typing
+    const others=(names||[]).filter(n=>n!==myUsername);
+    if(others.length===0){ind.classList.remove('show');return;}
+    let label;
+    if(others.length===1) label=`${others[0]} is typing`;
+    else if(others.length===2) label=`${others[0]} and ${others[1]} are typing`;
+    else label=`${others.slice(0,-1).join(', ')} and ${others[others.length-1]} are typing`;
+    nameEl.textContent=label;
+    ind.classList.add('show');
+    document.getElementById(ch==='watch'?'watch-msgs':'ink-msgs').scrollTop=9999;
+  });
+  socket.on('host-disconnected',()=>{stopHeartbeat();sysChat('watch','Host left — session ended');alert('The host disconnected.');});
+  // FIX 2: host migration — promote self or update UI when host changes
+  socket.on('host-migrated',({newHostId,newHostName,participants})=>{
+    if(participants)setMembers(participants);
+    if(newHostId===socket.id){
+      isHost=true;setRole('host');
+      startHeartbeat();
+      sysChat('watch','👑 You are now the host');
+    }else{
+      sysChat('watch',`👑 ${newHostName} is now the host`);
+    }
+  });
+  // FIX 3: game pause/resume when all players leave InkMind tab
+  socket.on('game-paused',()=>{
+    sysChat('ink','⏸ Game paused — everyone switched to Watch');
+    sysChat('watch','⏸ InkMind game paused — switch back to resume');
+    showChatNotif('⏸ Game paused');
+    const gs=document.getElementById('game-status');
+    if(gs)gs.innerHTML='⏸ Game paused';
+  });
+  socket.on('game-resumed',()=>{
+    sysChat('ink','▶ Game resumed!');
+  });
+  socket.on('drawing-resumed',({drawerId,drawerName,timeLeft})=>{
+    updateTimer(timeLeft);
+    const gs=document.getElementById('game-status');
+    if(gs)gs.innerHTML=drawerId===socket.id?'✏️ Draw your word!':`<strong>${drawerName}</strong> is drawing`;
+  });
+
+  /* ── INKMIND ── */
+  socket.on('scribble-started',()=>{
+    scribbleActive=true;strokeHistory=[];remoteStrokeHistory=[];
+    closeLB();
+    document.getElementById('live-score-bar').classList.remove('show');
+    sysChat('ink','🎨 InkMind game started!');
+    switchTab('ink');
+  });
+
+  socket.on('round-start',({drawerName,drawerId,roundNum,totalRounds,choiceTime})=>{
+    timerTotal=60;strokeHistory=[];remoteStrokeHistory=[];currentBlanksStr='';
+    document.getElementById('round-counter').textContent=`Sketch ${roundNum}/${totalRounds}`;
+    document.getElementById('round-counter').classList.remove('hidden');
+    document.getElementById('timer-ring').classList.add('hidden');
+    document.getElementById('word-area').innerHTML='';
+    if(drawCtx)drawCtx.clearRect(0,0,drawCanvas.width,drawCanvas.height);
+
+    isDrawer=(drawerId===socket.id);
+    if(isDrawer){
+      showOv('ov-choice');startCC('cc-drawer',choiceTime||10);
+      document.getElementById('game-status').innerHTML='✏️ Pick your word!';
+    }else{
+      document.getElementById('choosing-msg').textContent=`${drawerName} is choosing…`;
+      showOv('ov-choosing');startCC('cc-watcher',choiceTime||10);
+      document.getElementById('game-status').innerHTML=`<strong>${drawerName}</strong> is drawing`;
+    }
+    document.getElementById('canvas-toolbar').style.display='none';
+    drawCanvas.className='scribble-canvas';
+    sysChat('ink',`Sketch ${roundNum}/${totalRounds} — ${drawerName} draws`);
+  });
+
+  socket.on('word-choice',({words})=>{
+    const grid=document.getElementById('choices-grid');grid.innerHTML='';
+    words.forEach(w=>{
+      const btn=document.createElement('button');btn.className='word-choice-btn';btn.textContent=w;
+      btn.onclick=()=>{stopCC();socket.emit('word-chosen',{word:w});btn.style.background='linear-gradient(135deg,var(--gold),var(--gold-deep))';btn.style.color='var(--bg-deep)';};
+      grid.appendChild(btn);
+    });
+  });
+
+  socket.on('drawing-started',({drawerName,drawerId,wordLength})=>{
+    stopCC();timerTotal=60;updateTimer(60);hideAllOv();
+    if(isDrawer){
+      document.getElementById('canvas-toolbar').style.display='flex';
+      drawCanvas.className='scribble-canvas drawing';
+      document.getElementById('game-status').innerHTML='✏️ Draw your word!';
+      document.getElementById('ink-chat-title').textContent='💬 InkMind Chat';
+    }else{
+      document.getElementById('canvas-toolbar').style.display='none';
+      drawCanvas.className='scribble-canvas';
+      document.getElementById('game-status').innerHTML=`<strong>${drawerName}</strong> is drawing`;
+      document.getElementById('ink-chat-title').textContent='🎯 Guess the word!';
+    }
+    requestAnimationFrame(()=>requestAnimationFrame(resizeCanvas));
+  });
+
+  socket.on('your-word',({word})=>{
+    document.getElementById('word-area').innerHTML=`<span class="word-display">${esc(word)}</span>`;
+  });
+  socket.on('word-blanks',({blanks})=>{currentBlanksStr=blanks;renderBlanks(blanks,null);});
+  socket.on('hint-reveal',({hint})=>{
+    const prev=currentBlanksStr;currentBlanksStr=hint;renderBlanks(hint,prev);
+    const n=hint.replace(/ /g,'').replace(/_/g,'').length;
+    // Show hint popup left of the blanks
+    const wa=document.getElementById('word-area');
+    const old=wa.querySelector('.hint-pop');if(old)old.remove();
+    const pop=document.createElement('div');pop.className='hint-pop';
+    pop.textContent=`💡 ${n} hint${n!==1?'s':''}`;
+    wa.appendChild(pop);
+    setTimeout(()=>{if(pop.parentNode)pop.remove();},2800);
+  });
+  function renderBlanks(hint,prev){
+    const letters=hint.split(' ');
+    const p=prev?prev.split(' '):letters.map(()=>'_');
+    const html=letters.map((c,i)=>c==='_'?'<span>_</span>':`<span class="${p[i]==='_'?'revealed':''}">${c}</span>`).join('<span style="margin:0 1px"> </span>');
+    document.getElementById('word-area').innerHTML=`<span class="word-blanks">${html}</span>`;
+  }
+
+  socket.on('scribble-tick',({timeLeft})=>updateTimer(timeLeft));
+
+  // Fix #3: server sends the word privately to the guesser when they guess correctly
+  socket.on('your-correct-word',({word})=>{
+    // Fill their blanks display with the full word (revealed green)
+    const revealed=[...word].join(' ');
+    document.getElementById('word-area').innerHTML=`<span class="word-blanks">${[...word].map(c=>`<span class="revealed">${c}</span>`).join('<span style="margin:0 1px"> </span>')}</span>`;
+    currentBlanksStr=revealed;
+  });
+
+  // Fix #4: late-joiner silent sync
+  socket.on('game-sync',({phase,drawerId,drawerName,roundNum,totalRounds,timeLeft,scores,blanks,wordLength})=>{
+    scribbleActive=true;isDrawer=(drawerId===socket.id);
+    document.getElementById('round-counter').textContent=`Sketch ${roundNum}/${totalRounds}`;
+    document.getElementById('round-counter').classList.remove('hidden');
+    if(scores)updateLiveScores(scores);
+    switchTab('ink');
+    if(phase==='drawing'){
+      timerTotal=60;hideAllOv();
+      if(timeLeft!=null)updateTimer(timeLeft);
+      if(isDrawer){
+        document.getElementById('canvas-toolbar').style.display='flex';
+        drawCanvas.className='scribble-canvas drawing';
+        document.getElementById('game-status').innerHTML='✏️ Draw your word!';
+      }else{
+        document.getElementById('game-status').innerHTML=`<strong>${drawerName}</strong> is drawing`;
+        if(blanks){currentBlanksStr=blanks;renderBlanks(blanks,null);}
+        document.getElementById('ink-chat-title').textContent='🎯 Guess the word!';
+      }
+    }else if(phase==='choosing'){
+      document.getElementById('choosing-msg').textContent=`${drawerName} is choosing…`;
+      showOv('ov-choosing');
+      document.getElementById('game-status').innerHTML=`<strong>${drawerName}</strong> is choosing a word`;
+    }
+    requestAnimationFrame(()=>requestAnimationFrame(resizeCanvas));
+  });
+
+  socket.on('correct-guess',({guesser,points,rank,scores})=>{
+    sysEvent('ink',`✅ ${guesser} guessed it! +${points} pts`);
+    updateLiveScores(scores);
+  });
+
+  socket.on('round-end',({word,reason,scores})=>{
+    isDrawer=false;stopCC();
+    document.getElementById('canvas-toolbar').style.display='none';
+    document.getElementById('word-area').innerHTML='';
+    document.getElementById('timer-ring').classList.add('hidden');
+    let rt='Round ended';
+    if(reason==='correct'||reason==='all-guessed')rt='Everyone got it! 🎉';
+    else if(reason==='timeout')rt='Time\'s up! ⏰';
+    else if(reason==='drawer-left')rt='Drawer left';
+    document.getElementById('rr-text').textContent=rt;
+    document.getElementById('rr-word').textContent=`Word: ${word}`;
+    document.getElementById('rr-scores').innerHTML=(scores||[]).slice(0,5).map((s,i)=>`<div class="rsm-row ${i===0?'leader':''}"><span class="rsm-name">${RE[i]||'·'} ${esc(s.name)}</span><span class="rsm-score">${s.score}</span></div>`).join('');
+    updateLiveScores(scores);
+    showOv('ov-round-end');
+    document.getElementById('game-status').textContent='Starting next round…!';
+    drawCanvas.className='scribble-canvas';
+  });
+
+  socket.on('game-over',({rounds,scores,winner,reason})=>{
+    scribbleActive=false;isDrawer=false;stopCC();
+    document.getElementById('canvas-toolbar').style.display='none';
+    document.getElementById('timer-ring').classList.add('hidden');
+    document.getElementById('word-area').innerHTML='';
+    document.getElementById('game-status').textContent='Game complete!';
+    document.getElementById('ink-chat-title').textContent='💬 InkMind Chat';
+    if(reason==='opponent-left'&&winner){
+      sysChat('ink',`🏆 ${winner} wins — opponent left!`);
+    }else{
+      sysChat('ink',`🏆 Game over! ${rounds} rounds done.`);
+    }
+    hideAllOv();
+    showOv('ov-lobby');
+    checkLobbyMinPlayers();
+    showLB(scores||[],rounds);
+  });
+
+  socket.on('scribble-stopped',()=>{
+    scribbleActive=false;isDrawer=false;stopCC();
+    showOv('ov-lobby');document.getElementById('canvas-toolbar').style.display='none';
+    document.getElementById('timer-ring').classList.add('hidden');document.getElementById('word-area').innerHTML='';
+    document.getElementById('game-status').textContent='Ready to draw ✏️';
+    document.getElementById('ink-chat-title').textContent='💬 InkMind Chat';
+    document.getElementById('live-score-bar').classList.remove('show');
+    checkLobbyMinPlayers();
+  });
+
+  socket.on('draw-event',data=>{
+    if(!drawCtx||!drawCanvas)return;
+    rTrack(data);
+    if(data.type==='start'){const{x,y}=nPx(data.nx,data.ny);drawCtx.beginPath();drawCtx.arc(x,y,data.size/2,0,Math.PI*2);drawCtx.fillStyle=data.color;drawCtx.fill();remoteLastNX=data.nx;remoteLastNY=data.ny;}
+    else if(data.type==='move'){const{x:x1,y:y1}=nPx(remoteLastNX,remoteLastNY),{x:x2,y:y2}=nPx(data.nx,data.ny);line(x1,y1,x2,y2,data.color,data.size);remoteLastNX=data.nx;remoteLastNY=data.ny;}
+  });
+  socket.on('canvas-clear',()=>{remoteStrokeHistory=[];if(drawCtx)drawCtx.clearRect(0,0,drawCanvas.width,drawCanvas.height);});
+  socket.on('canvas-undo',()=>{remoteStrokeHistory.pop();redrawRemote();});
+}
 </script>
 </body>
 </html>
