@@ -1248,6 +1248,7 @@ let pendingVideoState=null; // {videoId, timestamp, isPlaying}
 let mobileChatOpen=false;
 let latestHostTimestamp=0, latestHostPlaying=false; // tracks host position for sync
 let lastLocalSyncAt=0; // v22: timestamp of our last sync-event emission — suppresses heartbeat snap-back
+let _stateDebounce=null; // v26: debounce rapid onPlayerState events during mobile seek
 
 /* ══════ NAMES ══════ */
 const ADJ=['Swift','Calm','Bright','Bold','Clear','Keen','Noble','Sage','Warm','Vivid','Crisp','Pure','Quiet','Sharp','Steady','True','Brave','Witty','Clever','Gentle','Amber','Azure','Silver','Golden','Agile','Earnest','Focused','Loyal','Serene','Valiant'];
@@ -1619,23 +1620,33 @@ function createPlayer(videoId,startTime,autoplay){
 }
 function onPlayerState(ev){
   if(isSyncing)return;
-  if(ev.data===YT.PlayerState.PLAYING){
-    guestHasInteracted=true;
-    if(socket&&roomCode){
+  if(ev.data===YT.PlayerState.PLAYING||ev.data===YT.PlayerState.PAUSED){
+    // v26: Debounce rapid state changes from YouTube during mobile seek (PAUSED→PLAYING).
+    // Without this, seeking emits TWO sync-events: pause@old_pos then play@new_pos,
+    // causing other clients to jump back then forward ("re-run" artifact).
+    if(_stateDebounce)clearTimeout(_stateDebounce);
+    _stateDebounce=setTimeout(()=>{
+      _stateDebounce=null;
+      if(!player||isSyncing)return;
+      const state=player.getPlayerState();
       const t=player.getCurrentTime();
-      socket.emit('sync-event',{type:'play',timestamp:t,sentAt:Date.now()});
-      lastLocalSyncAt=Date.now(); // protect from heartbeat snap-back
-    }
-    // v22 Fix #9: clear pause banner when local user plays
-    clearPauseBanner();
-  }else if(ev.data===YT.PlayerState.PAUSED){
-    if(socket&&roomCode){
-      const t=player.getCurrentTime();
-      socket.emit('sync-event',{type:'pause',timestamp:t,sentAt:Date.now()});
-      lastLocalSyncAt=Date.now(); // protect from heartbeat snap-back
-    }
-    // v22 Fix #9: show persistent pause banner for local user
-    showPauseBanner(myUsername);
+      if(state===YT.PlayerState.PLAYING){
+        guestHasInteracted=true;
+        if(socket&&roomCode){
+          socket.emit('sync-event',{type:'play',timestamp:t,sentAt:Date.now()});
+          lastLocalSyncAt=Date.now(); // protect from heartbeat snap-back
+        }
+        // v22 Fix #9: clear pause banner when local user plays
+        clearPauseBanner();
+      }else if(state===YT.PlayerState.PAUSED){
+        if(socket&&roomCode){
+          socket.emit('sync-event',{type:'pause',timestamp:t,sentAt:Date.now()});
+          lastLocalSyncAt=Date.now(); // protect from heartbeat snap-back
+        }
+        // v22 Fix #9: show persistent pause banner for local user
+        showPauseBanner(myUsername);
+      }
+    },200);
   }
 }
 function extractVid(url){const m=(url||'').match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/);return m?m[1]:null;}
