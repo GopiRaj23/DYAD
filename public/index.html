@@ -246,6 +246,11 @@ button{
   /* JS sets explicit height; this ensures the dock doesn't escape */
   overflow:hidden;
 }
+/* When keyboard is open, ensure chat header + input get priority space; messages shrink */
+#page-room.kbd-open .chat-panel{min-height:0;overflow:hidden;}
+#page-room.kbd-open .chat-messages{flex:1;min-height:0;overflow-y:auto;}
+#page-room.kbd-open .chat-header{flex-shrink:0;}
+#page-room.kbd-open .chat-input-row{flex-shrink:0;}
 /* Fix 2: Chat notification pill — centered over the chat-messages area */
 .chat-notif{
   position:absolute;bottom:80px;left:50%;
@@ -2249,11 +2254,13 @@ function applyKeyboardLayout(){
     if(!_preKbdRlH)_preKbdRlH=rl.offsetHeight;
     rl.style.flex='0 0 '+_preKbdRlH+'px';
     rl.style.height=_preKbdRlH+'px';
-    // room-right gets whatever space remains
+    // Hide dock while keyboard is open — reclaims ~52px for the chat area
+    const dock=document.querySelector('.dock');
+    if(dock)dock.style.display='none';
+    // room-right gets whatever space remains (dock excluded since hidden)
     const topbarH=document.querySelector('.topbar')?.offsetHeight||48;
     const ribbonH=document.querySelector('.mode-ribbon')?.offsetHeight||40;
-    const dockH=document.querySelector('.dock')?.offsetHeight||52;
-    const usedH=topbarH+ribbonH+_preKbdRlH+dockH;
+    const usedH=topbarH+ribbonH+_preKbdRlH;
     const remaining=Math.max(vvh-usedH,80);
     rr.style.maxHeight=remaining+'px';
     pr.classList.add('kbd-open');
@@ -2263,6 +2270,9 @@ function applyKeyboardLayout(){
     rr.style.maxHeight='';
     rl.style.height='';
     pr.style.height='';
+    // Restore dock visibility
+    const dock=document.querySelector('.dock');
+    if(dock)dock.style.display='';
     pr.classList.remove('kbd-open');
     // Re-apply tab-specific room-left sizing
     adjustMobileLayout(currentTab);
@@ -2335,9 +2345,24 @@ function initSocket(){
       latestHostReceived=Date.now()/1000;
       switchTab('watch');
       if(isPlaying){
-        // Show tap-to-play prompt — this is a user gesture so playVideo() will succeed
-        const sp=document.getElementById('sync-prompt');
-        if(sp)sp.classList.add('show');
+        // Try auto-play first; fall back to sync-prompt if browser blocks it
+        isSyncing=true;
+        const elapsed=latestHostPlaying?(Date.now()/1000-latestHostReceived):0;
+        const target=Math.max(0,latestHostTimestamp+elapsed);
+        player.seekTo(target,true);
+        player.playVideo();
+        guestHasInteracted=true;
+        setTimeout(()=>{
+          const st=player.getPlayerState();
+          if(st!==YT.PlayerState.PLAYING&&st!==YT.PlayerState.BUFFERING){
+            // Autoplay blocked by browser — show manual sync prompt as fallback
+            const sp=document.getElementById('sync-prompt');
+            if(sp)sp.classList.add('show');
+          }else{
+            toast('✓ Playing in sync with host!');
+          }
+          isSyncing=false;
+        },1200);
       }else{
         // v22 Fix #4: Host is paused — explicitly force-pause after creation.
         // YouTube iframe can auto-play briefly despite autoplay:0; this kills it immediately.
