@@ -244,10 +244,10 @@ button{
   /* JS sets explicit height; this ensures the dock doesn't escape */
   overflow:hidden;
 }
-/* Fix 2: Chat notification pill — centered over the chat-messages area */
+/* Fix 2 / v25: Chat notification pill — floats just above the chat-input-row */
 .chat-notif{
-  position:absolute;top:40%;left:50%;
-  transform:translateX(-50%) translateY(-6px);
+  position:absolute;bottom:52px;left:50%;
+  transform:translateX(-50%) translateY(6px);
   z-index:60;pointer-events:none;
   background:rgba(8,15,16,.94);backdrop-filter:blur(14px);
   border:1px solid var(--border-hi);border-radius:100px;
@@ -257,7 +257,7 @@ button{
   opacity:0;transition:opacity .22s ease,transform .24s cubic-bezier(.22,1,.36,1);
 }
 .chat-notif.show{opacity:1;transform:translateX(-50%) translateY(0);}
-.chat-notif.out{opacity:0;transform:translateX(-50%) translateY(-10px);}
+.chat-notif.out{opacity:0;transform:translateX(-50%) translateY(6px);}
 .tab-content{flex:1;display:none;flex-direction:column;overflow:hidden;padding:.65rem .7rem .65rem .9rem;gap:.45rem;}
 .tab-content.active{display:flex;}
 
@@ -409,15 +409,7 @@ button{
 .chat-panel{flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0;}
 .chat-header{display:flex;align-items:center;justify-content:space-between;padding:.46rem .82rem;border-bottom:1px solid var(--border);background:var(--surface2);flex-shrink:0;}
 .chat-hdr-title{font-size:.64rem;letter-spacing:.17em;text-transform:uppercase;color:var(--text-dim);}
-/* Landscape hint — only shown on portrait mobile */
-.landscape-hint{
-  display:none;
-  text-align:center;font-size:.58rem;color:var(--text-faint);
-  padding:.28rem .5rem;letter-spacing:.04em;flex-shrink:0;
-}
-@media (max-width:639px) and (orientation:portrait){
-  .landscape-hint{display:block;}
-}
+/* landscape-hint removed in v25 */
 
 /* unread-star removed — notifications handled via chat-notif pill */
 .chat-messages{flex:1;overflow-y:auto;padding:.55rem .75rem;display:flex;flex-direction:column;gap:.34rem;scroll-behavior:smooth;min-height:0;}
@@ -728,9 +720,12 @@ button{
 @media (max-height:520px) and (orientation:landscape){
   :root{--topbar-h:40px;--ribbon-h:34px;--dock-h:44px;--chat-w:230px;}
 
+  /* v25: prevent any element from exceeding viewport */
+  #page-room{max-height:100vh;max-height:100dvh;}
+
   /* Side-by-side — same as desktop */
-  .room-body{flex-direction:row;}
-  .room-left{flex:1;min-width:0;border-right:1px solid var(--border);}
+  .room-body{flex-direction:row;overflow:hidden;}
+  .room-left{flex:1;min-width:0;overflow:hidden;border-right:1px solid var(--border);}
   .room-right{
     width:var(--chat-w);flex-shrink:0;display:flex;flex-direction:column;
     position:static;overflow:hidden;
@@ -741,28 +736,31 @@ button{
   .ribbon-chat-btn{display:none;}
 
   /* ── Watch tab: video fills height ── */
-  #tab-watch{padding:.2rem;}
-  .player-wrap{flex:1;min-height:0;}
+  #tab-watch{padding:.2rem;overflow:hidden;}
+  .player-wrap{flex:1;min-height:0;overflow:hidden;}
   .player-box{width:100%;height:100%;border-radius:6px;}
 
   /* ── InkMind tab ── */
   #tab-ink{padding:.18rem .22rem .12rem;gap:.12rem;overflow:hidden;}
-  .game-info-bar{flex-wrap:nowrap;gap:.2rem;padding:.08rem 0;flex-shrink:0;}
+  .game-info-bar{flex-wrap:nowrap;gap:.2rem;padding:.08rem 0;flex-shrink:0;overflow:hidden;}
   .game-status{font-size:.56rem;}
   #word-area{font-size:clamp(.78rem,2vw,.95rem);}
-  .live-score-bar{gap:.12rem;flex-shrink:0;}
+  .live-score-bar{gap:.12rem;flex-shrink:0;overflow:hidden;}
   .score-pill{font-size:.48rem;padding:.06rem .26rem;}
   .canvas-toolbar{
     flex-shrink:0;flex-wrap:nowrap;gap:.12rem;
-    overflow-x:auto;padding:.08rem 0;scrollbar-width:none;
+    overflow-x:auto;overflow-y:hidden;padding:.08rem 0;scrollbar-width:none;
   }
   .canvas-toolbar::-webkit-scrollbar{display:none;}
   .color-swatch{width:17px;height:17px;flex-shrink:0;}
   .canvas-act{font-size:.48rem;padding:.16rem .34rem;}
   .brush-slider{width:40px;}
+  /* v25: constrain scribble canvas in landscape */
+  .scribble-wrap{flex:1;min-height:0;overflow:hidden;}
 
   /* ── Dock ── */
-  .dock-inner{gap:.22rem;padding:0;}
+  .dock{overflow:hidden;}
+  .dock-inner{gap:.22rem;padding:0;overflow:hidden;}
   .vol-wrap{display:none;}
   .mic-state-txt{display:none;}
   .voice-wave{display:none;}
@@ -780,6 +778,10 @@ button{
   .members-btn{font-size:.5rem;padding:.08rem .3rem;}
   /* v22 Fix #10: hide smiley toggle in chat on mobile */
   .emoji-ico{display:none;}
+
+  /* v25: topbar/ribbon overflow guard */
+  .topbar{overflow:hidden;}
+  .mode-ribbon{overflow:hidden;}
 }
 
 /* Chat toggle button (mobile only) */
@@ -1108,7 +1110,6 @@ button{
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
           </button>
         </div>
-        <div class="landscape-hint">📱 Rotate to landscape for a better experience</div>
       </div>
       <!-- InkMind chat -->
       <div class="chat-panel hidden" id="chat-ink">
@@ -1162,7 +1163,6 @@ button{
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
           </button>
         </div>
-        <div class="landscape-hint">📱 Rotate to landscape for a better experience</div>
       </div>
     </div><!-- /room-right -->
   </div><!-- /room-body -->
@@ -2202,22 +2202,22 @@ function clearPauseBanner(){
   if(el)el.remove();
 }
 
-/* Fix 6: Keyboard-aware layout — when keyboard opens in portrait, shrink room-right
-   so the video/canvas (room-left) stays fully visible at the top.
-   Strategy: room-left is flex:0 0 auto (sized by content), so we clamp room-right's
-   max-height to whatever space is left after the keyboard appears. */
+/* Fix 6 / v25: Keyboard-aware layout — when keyboard opens in portrait, freeze room-left
+   (video/canvas) at its current height so it stays fixed at the top, and shrink room-right
+   to whatever space remains. Works identically for both Watch and InkMind tabs. */
 function applyKeyboardLayout(){
   if(!window.visualViewport)return;
   const portrait=window.innerWidth<640&&window.innerHeight>window.innerWidth;
   const rr=document.getElementById('room-right');
   const rl=document.getElementById('room-left');
   if(!rr||!rl)return;
-  if(!portrait){rr.style.maxHeight='';return;}
+  if(!portrait){rr.style.maxHeight='';rl.style.maxHeight='';return;}
   const vvh=Math.round(window.visualViewport.height);
   const kbdH=Math.max(0,window.innerHeight-vvh);
   if(kbdH>80){
-    // Keyboard open — room-left stays its natural height, room-right gets remaining space
+    // Keyboard open — freeze room-left at its current height so it doesn't reflow
     const rlH=rl.offsetHeight;
+    rl.style.maxHeight=rlH+'px';
     const topbarH=document.querySelector('.topbar')?.offsetHeight||48;
     const ribbonH=document.querySelector('.ribbon')?.offsetHeight||40;
     const dockH=document.querySelector('.dock')?.offsetHeight||52;
@@ -2227,6 +2227,7 @@ function applyKeyboardLayout(){
     document.getElementById('page-room').classList.add('kbd-open');
   }else{
     rr.style.maxHeight='';
+    rl.style.maxHeight='';
     document.getElementById('page-room').classList.remove('kbd-open');
     if(currentTab==='ink')requestAnimationFrame(()=>requestAnimationFrame(resizeCanvas));
   }
