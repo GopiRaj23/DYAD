@@ -1403,7 +1403,8 @@ async function loadFromTray(){
   ytLoaded=true;
   if(!window.YT||!window.YT.Player)await loadYTAPI();
   await createPlayer(vid,0);
-  if(isHost){socket.emit('change-video',{videoId:vid});startHeartbeat();}
+  if(socket)socket.emit('change-video',{videoId:vid});
+  if(isHost)startHeartbeat();
   switchTab('watch');
   document.getElementById('yt-tray-input').value='';
 }
@@ -1604,7 +1605,7 @@ function createPlayer(videoId,startTime){
     isSyncing=true; // prevent onPlayerState from emitting sync-events while loading
     player=new YT.Player('yt-player',{
       videoId,
-      playerVars:{autoplay:0,start:Math.floor(startTime||0),rel:0,modestbranding:1,playsinline:1},
+      playerVars:{autoplay:0,start:Math.floor(startTime||0),rel:0,modestbranding:1,playsinline:1,origin:window.location.origin},
       events:{
         onReady:e=>{
           if(startTime>1)e.target.seekTo(startTime,true);
@@ -1614,7 +1615,15 @@ function createPlayer(videoId,startTime){
           setTimeout(()=>{isSyncing=false;},1200);
           res();
         },
-        onStateChange:onPlayerState
+        onStateChange:onPlayerState,
+        onError:e=>{
+          // YouTube error codes: 2=invalid param, 5=HTML5 error, 100=not found, 101/150=embed restricted
+          const code=e.data;
+          const msgs={2:'Invalid video ID',5:'HTML5 player error',100:'Video not found',101:'Video cannot be embedded',150:'Video cannot be embedded'};
+          toast('⚠️ '+(msgs[code]||'Video unavailable (error '+code+')')+'. Try a different video.');
+          isSyncing=false;
+          res(); // resolve so callers don't hang
+        }
       }
     });
   });
