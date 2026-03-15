@@ -103,7 +103,6 @@ io.on('connection', (socket) => {
       hostName: username || 'Host',
       videoId: videoId || null,
       timestamp: 0, isPlaying: false, lastUpdate: Date.now(),
-      lastPlayTime: null, lastPlayInitiator: null, // Used for autoplay bounce prevention
       peerIds: new Map(),
       participants: new Map([[socket.id, username || 'Host']]),
       playerTabs: new Map([[socket.id, 'watch']]),  // FIX 3: tab tracking
@@ -235,24 +234,9 @@ io.on('connection', (socket) => {
     if (!socket.roomCode) return;
     const room = rooms.get(socket.roomCode);
     if (!room) return;
-    
-    if (type === 'play') {
-      room.isPlaying = true;
-      room.lastPlayTime = Date.now();
-      room.lastPlayInitiator = socket.id;
-    } else if (type === 'pause') {
-      // Prevent mobile autoplay policies from bouncing a pause back to the room.
-      // If a pause comes from a DIFFERENT user within 3.5 seconds of a play, ignore it.
-      if (room.isPlaying && room.lastPlayTime && (Date.now() - room.lastPlayTime < 3500) && socket.id !== room.lastPlayInitiator) {
-        console.log(`[!] Ignored autoplay-bounce pause from ${socket.id}`);
-        return; 
-      }
-      room.isPlaying = false;
-    }
-
-    room.timestamp = timestamp; 
-    room.lastUpdate = Date.now();
-
+    room.timestamp = timestamp; room.lastUpdate = Date.now();
+    if (type === 'play')  room.isPlaying = true;
+    if (type === 'pause') room.isPlaying = false;
     // Broadcast to ALL other sockets — host must also react to guest sync-events
     socket.to(socket.roomCode).emit('sync-event', {
       type, timestamp, sentAt,
@@ -264,9 +248,8 @@ io.on('connection', (socket) => {
     if (!socket.roomCode || !socket.isHost) return;
     const room = rooms.get(socket.roomCode);
     if (!room) return;
-    // v27: Restored v24 heartbeat logic — always broadcast with computed effective values
-    // during grace period. Returning early (v25) caused a 3.5s blind spot where guests
-    // received no position updates, leading to visible jumps when heartbeat resumed.
+    // v22: Extended from 1.5s to 3.5s — gives YouTube enough time to buffer+settle at a new
+    // seek position before the host's heartbeat resumes authority over the room state.
     const msSinceSync = Date.now() - room.lastUpdate;
     const effectivePlaying = msSinceSync < 3500 ? room.isPlaying : isPlaying;
     const effectiveTimestamp = msSinceSync < 3500 ? room.timestamp + (room.isPlaying ? msSinceSync/1000 : 0) : timestamp;
@@ -295,9 +278,8 @@ io.on('connection', (socket) => {
     if (!socket.roomCode) return;
     const room = rooms.get(socket.roomCode);
     if (!room) return;
-    room.videoId = videoId; room.timestamp = 0; room.isPlaying = false; room.lastUpdate = Date.now();
-    // v25: Video loads paused — the loader's play action sends a sync-event with the real state
-    socket.to(socket.roomCode).emit('watch-sync', { videoId, timestamp: 0, isPlaying: false });
+    room.videoId = videoId; room.timestamp = 0; room.isPlaying = true; room.lastUpdate = Date.now();
+    socket.to(socket.roomCode).emit('watch-sync', { videoId, timestamp: 0, isPlaying: true });
     // v23: Notify all users (including sender) via chat
     const msg = { text: `📺 ${socket.username || 'Someone'} loaded a new video`, username: '⚙️ System', channel: 'watch', fromSelf_id: null };
     io.to(socket.roomCode).emit('chat-message', msg);
