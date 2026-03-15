@@ -1412,18 +1412,19 @@ async function loadFromTray(){
   document.getElementById('yt-tray-input').value='';
 }
 
-// FIX 4: Adjust room-left height dynamically for mobile portrait.
-// Watch: auto-height (video 16:9 determines it).
-// InkMind: 56% of room-body height so canvas gets ample room.
+// FIX 4 / v26: Adjust room-left height dynamically for mobile portrait.
+// Watch: auto-height (video 16:9 determines it via aspect-ratio on player-box).
+// InkMind: same width-based height as video (viewport-width * 9/16) so the canvas
+// area is locked and stable when the keyboard opens (width never changes).
 function adjustMobileLayout(tab){
   const portrait=window.innerWidth<640&&window.innerHeight>window.innerWidth;
   const rl=document.getElementById('room-left');
   if(!rl)return;
   if(portrait){
     if(tab==='ink'){
-      const rb=document.querySelector('.room-body');
-      const bh=rb?rb.offsetHeight:Math.max(1,window.innerHeight-48-40-52);
-      rl.style.flex='0 0 '+Math.round(bh*0.56)+'px';
+      // v26: use viewport width to derive height — same as video's aspect-ratio:16/9
+      const targetH=Math.round(window.innerWidth*9/16);
+      rl.style.flex='0 0 '+targetH+'px';
     }else{
       rl.style.flex='';  // auto — video aspect-ratio sizes it
     }
