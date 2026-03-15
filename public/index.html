@@ -2449,7 +2449,9 @@ function initSocket(){
     if(Date.now()-lastLocalSyncAt<3500)return;
     if(Math.abs(player.getCurrentTime()-timestamp)>0.5){isSyncing=true;player.seekTo(timestamp,true);flashSync();setTimeout(()=>{isSyncing=false;},400);}
     const myPlay=player.getPlayerState()===YT.PlayerState.PLAYING;
-    if(isPlaying&&!myPlay){isSyncing=true;player.playVideo();guestHasInteracted=true;setTimeout(forceRepaint,100);setTimeout(()=>{isSyncing=false;},400);}
+    // v27: Restored v24 guestHasInteracted guard — only heartbeat-play if user has interacted
+    // (respects mobile autoplay policy, prevents force-play before user gesture)
+    if(isPlaying&&!myPlay&&guestHasInteracted){isSyncing=true;player.playVideo();setTimeout(forceRepaint,100);setTimeout(()=>{isSyncing=false;},400);}
     else if(!isPlaying&&myPlay){isSyncing=true;player.pauseVideo();setTimeout(()=>{isSyncing=false;},400);}
   });
   socket.on('mention',({fromName,channel})=>{
