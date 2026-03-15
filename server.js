@@ -248,8 +248,9 @@ io.on('connection', (socket) => {
     if (!socket.roomCode || !socket.isHost) return;
     const room = rooms.get(socket.roomCode);
     if (!room) return;
-    // v22: Extended from 1.5s to 3.5s — gives YouTube enough time to buffer+settle at a new
-    // seek position before the host's heartbeat resumes authority over the room state.
+    // v27: Restored v24 heartbeat logic — always broadcast with computed effective values
+    // during grace period. Returning early (v25) caused a 3.5s blind spot where guests
+    // received no position updates, leading to visible jumps when heartbeat resumed.
     const msSinceSync = Date.now() - room.lastUpdate;
     const effectivePlaying = msSinceSync < 3500 ? room.isPlaying : isPlaying;
     const effectiveTimestamp = msSinceSync < 3500 ? room.timestamp + (room.isPlaying ? msSinceSync/1000 : 0) : timestamp;
@@ -278,8 +279,9 @@ io.on('connection', (socket) => {
     if (!socket.roomCode) return;
     const room = rooms.get(socket.roomCode);
     if (!room) return;
-    room.videoId = videoId; room.timestamp = 0; room.isPlaying = true; room.lastUpdate = Date.now();
-    socket.to(socket.roomCode).emit('watch-sync', { videoId, timestamp: 0, isPlaying: true });
+    room.videoId = videoId; room.timestamp = 0; room.isPlaying = false; room.lastUpdate = Date.now();
+    // v25: Video loads paused — the loader's play action sends a sync-event with the real state
+    socket.to(socket.roomCode).emit('watch-sync', { videoId, timestamp: 0, isPlaying: false });
     // v23: Notify all users (including sender) via chat
     const msg = { text: `📺 ${socket.username || 'Someone'} loaded a new video`, username: '⚙️ System', channel: 'watch', fromSelf_id: null };
     io.to(socket.roomCode).emit('chat-message', msg);

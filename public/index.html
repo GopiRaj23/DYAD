@@ -159,25 +159,19 @@ button{
 .gcm-cancel{flex:1;background:transparent;border:1px solid var(--border);color:var(--text-dim);padding:.88rem;}
 .gcm-cancel:hover{color:var(--text);border-color:var(--border-hi);}
 
-/* ══ LEADERBOARD ══ */
-.lb-overlay{position:fixed;inset:0;z-index:700;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.85);backdrop-filter:blur(12px);}
-.lb-overlay.open{display:flex;}
-.lb-card{background:var(--surface);border:1px solid var(--border-hi);border-radius:var(--r);padding:1.8rem 1.8rem 1.5rem;width:min(420px,90vw);box-shadow:0 22px 70px rgba(0,0,0,.8);animation:riseIn .45s cubic-bezier(.22,1,.36,1) both;max-height:90vh;overflow-y:auto;}
-.lb-badge{font-size:3.2rem;display:block;text-align:center;margin-bottom:.4rem;animation:trophySpin 1.1s cubic-bezier(.22,1,.36,1) both;}
-@keyframes trophySpin{from{transform:scale(0)rotate(-25deg)}to{transform:scale(1)rotate(0)}}
-.lb-title{font-family:var(--font-brand);font-size:2rem;font-weight:700;color:var(--gold);text-align:center;margin-bottom:.25rem;}
-.lb-sub{font-size:.7rem;color:var(--text-dim);text-align:center;margin-bottom:1.3rem;}
-.lb-list{display:flex;flex-direction:column;gap:.45rem;margin-bottom:1.3rem;}
+/* ══ LEADERBOARD (v25: inline within canvas-area as sc-overlay) ══ */
 .lb-row{display:flex;align-items:center;gap:.7rem;padding:.65rem .85rem;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--bg);}
 .lb-row.gold-row{background:linear-gradient(135deg,rgba(225,193,121,.12),rgba(196,165,90,.06));border-color:rgba(225,193,121,.28);}
 .lb-rank{font-size:1.3rem;flex-shrink:0;}
 .lb-name{flex:1;font-size:.82rem;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .lb-pts{font-family:var(--font-brand);font-size:1.25rem;font-weight:700;color:var(--gold);flex-shrink:0;}
 .lb-tag{font-size:.59rem;color:var(--text-faint);display:block;}
-.lb-btns{display:flex;gap:.45rem;}
-.lb-new{flex:2;background:linear-gradient(135deg,var(--gold),var(--gold-deep));color:var(--bg-deep);font-weight:700;padding:.86rem;}
-.lb-new:hover{transform:translateY(-1px);}
-.lb-close{flex:1;background:transparent;border:1px solid var(--border);color:var(--text-dim);padding:.86rem;}
+.lb-list-inline{display:flex;flex-direction:column;gap:.3rem;width:100%;max-width:280px;max-height:35vh;overflow-y:auto;}
+.lb-list-inline .lb-row{padding:.4rem .6rem;gap:.5rem;}
+.lb-list-inline .lb-rank{font-size:1rem;}
+.lb-list-inline .lb-name{font-size:.72rem;}
+.lb-list-inline .lb-pts{font-size:1rem;}
+.lb-list-inline .lb-tag{font-size:.5rem;}
 
 /* ══ ROOM PAGE ══ */
 #page-room{
@@ -227,6 +221,8 @@ button{
 .yt-tray.open{display:flex;}
 .yt-tray input{flex:1;margin-bottom:0;padding:.38rem .65rem;font-size:.76rem;height:30px;}
 .yt-load{background:linear-gradient(135deg,var(--gold),var(--gold-deep));color:var(--bg-deep);font-size:.64rem;font-weight:700;border-radius:var(--r-xs);padding:.38rem .8rem;white-space:nowrap;flex-shrink:0;}
+.exit-room-btn{margin-left:auto;color:#e06c6c;border-right:none;border-left:1px solid var(--border);}
+.exit-room-btn:hover{color:#ff8a8a;background:rgba(224,108,108,.08);}
 
 /* ROOM BODY */
 .room-body{flex:1;min-height:0;display:flex;overflow:hidden;}
@@ -244,10 +240,15 @@ button{
   /* JS sets explicit height; this ensures the dock doesn't escape */
   overflow:hidden;
 }
+/* When keyboard is open, ensure chat header + input get priority space; messages shrink */
+#page-room.kbd-open .chat-panel{min-height:0;overflow:hidden;}
+#page-room.kbd-open .chat-messages{flex:1;min-height:0;overflow-y:auto;}
+#page-room.kbd-open .chat-header{flex-shrink:0;}
+#page-room.kbd-open .chat-input-row{flex-shrink:0;}
 /* Fix 2: Chat notification pill — centered over the chat-messages area */
 .chat-notif{
-  position:absolute;top:40%;left:50%;
-  transform:translateX(-50%) translateY(-6px);
+  position:absolute;bottom:80px;left:50%;
+  transform:translateX(-50%) translateY(6px);
   z-index:60;pointer-events:none;
   background:rgba(8,15,16,.94);backdrop-filter:blur(14px);
   border:1px solid var(--border-hi);border-radius:100px;
@@ -257,7 +258,7 @@ button{
   opacity:0;transition:opacity .22s ease,transform .24s cubic-bezier(.22,1,.36,1);
 }
 .chat-notif.show{opacity:1;transform:translateX(-50%) translateY(0);}
-.chat-notif.out{opacity:0;transform:translateX(-50%) translateY(-10px);}
+.chat-notif.out{opacity:0;transform:translateX(-50%) translateY(10px);}
 .tab-content{flex:1;display:none;flex-direction:column;overflow:hidden;padding:.65rem .7rem .65rem .9rem;gap:.45rem;}
 .tab-content.active{display:flex;}
 
@@ -374,7 +375,7 @@ button{
 .clear-btn{background:rgba(224,112,112,.08);border-color:rgba(224,112,112,.22);color:var(--red);}
 .clear-btn:hover{background:rgba(224,112,112,.18);}
 
-.scribble-wrap{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden;background:var(--bg);}
+.scribble-wrap{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden;background:transparent;}
 /* canvas-area sized explicitly by resizeCanvas() to maintain 4:3 aspect ratio */
 .canvas-area{flex-shrink:0;position:relative;border-radius:var(--r);overflow:hidden;border:1px solid var(--border);background:#fff;}
 .scribble-canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;user-select:none;}
@@ -409,16 +410,6 @@ button{
 .chat-panel{flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0;}
 .chat-header{display:flex;align-items:center;justify-content:space-between;padding:.46rem .82rem;border-bottom:1px solid var(--border);background:var(--surface2);flex-shrink:0;}
 .chat-hdr-title{font-size:.64rem;letter-spacing:.17em;text-transform:uppercase;color:var(--text-dim);}
-/* Landscape hint — only shown on portrait mobile */
-.landscape-hint{
-  display:none;
-  text-align:center;font-size:.58rem;color:var(--text-faint);
-  padding:.28rem .5rem;letter-spacing:.04em;flex-shrink:0;
-}
-@media (max-width:639px) and (orientation:portrait){
-  .landscape-hint{display:block;}
-}
-
 /* unread-star removed — notifications handled via chat-notif pill */
 .chat-messages{flex:1;overflow-y:auto;padding:.55rem .75rem;display:flex;flex-direction:column;gap:.34rem;scroll-behavior:smooth;min-height:0;}
 .chat-messages::-webkit-scrollbar{width:3px;}
@@ -693,7 +684,7 @@ button{
   .color-swatch{width:18px;height:18px;flex-shrink:0;}
   .canvas-act{font-size:.5rem;padding:.18rem .38rem;}
   .brush-slider{width:42px;}
-  .scribble-wrap{flex:1;min-height:0;}
+  .scribble-wrap{flex:none;width:100%;aspect-ratio:4/3;min-height:0;}
 
   /* ── Dock: essentials only ── */
   .dock-inner{justify-content:flex-start;gap:.28rem;padding:0;}
@@ -726,14 +717,14 @@ button{
    Narrower chat panel, smaller controls.
    ════════════════════════════════════════════════════════ */
 @media (max-height:520px) and (orientation:landscape){
-  :root{--topbar-h:40px;--ribbon-h:34px;--dock-h:44px;--chat-w:230px;}
+  :root{--topbar-h:40px;--ribbon-h:34px;--dock-h:44px;}
 
-  /* Side-by-side — same as desktop */
-  .room-body{flex-direction:row;}
-  .room-left{flex:1;min-width:0;border-right:1px solid var(--border);}
+  /* Side-by-side — 60% canvas / 40% chat */
+  .room-body{flex-direction:row;max-width:100%;overflow:hidden;}
+  .room-left{flex:0 0 60%;min-width:0;border-right:1px solid var(--border);box-sizing:border-box;overflow:hidden;}
   .room-right{
-    width:var(--chat-w);flex-shrink:0;display:flex;flex-direction:column;
-    position:static;overflow:hidden;
+    flex:0 0 40%;width:auto;display:flex;flex-direction:column;
+    position:static;overflow:hidden;box-sizing:border-box;
   }
 
   /* No chat toggle needed — chat is always in the panel */
@@ -864,19 +855,7 @@ button{
   </div>
 </div>
 
-<!-- ══ LEADERBOARD ══ -->
-<div class="lb-overlay" id="lb-overlay">
-  <div class="lb-card">
-    <span class="lb-badge">🏆</span>
-    <div class="lb-title">Game Leaderboard</div>
-    <div class="lb-sub" id="lb-sub">Final standings</div>
-    <div class="lb-list" id="lb-list"></div>
-    <div class="lb-btns">
-      <button class="lb-new" onclick="openGCM()">Play Again</button>
-      <button class="lb-close" onclick="closeLB()">Close</button>
-    </div>
-  </div>
-</div>
+<!-- Leaderboard moved inside #canvas-area as sc-overlay (v25) -->
 
 <!-- ══ LANDING ══ -->
 <div id="page-landing">
@@ -938,7 +917,7 @@ button{
   <!-- TOPBAR -->
   <div class="topbar">
     <div class="topbar-left">
-      <div class="topbar-brand">DYAD</div>
+      <div class="topbar-brand" onclick="exitRoom()" style="cursor:pointer" title="Back to home">DYAD</div>
     </div>
     <div class="topbar-right">
       <div class="code-chip hidden" id="code-chip" onclick="copyChip()" title="Copy room invite link">
@@ -958,6 +937,7 @@ button{
     <button class="ribbon-btn" id="rb-ink" onclick="ribbonInkMind()">🎨 InkMind</button>
     <!-- Mobile chat button -->
     <button class="ribbon-chat-btn" id="rb-chat" onclick="toggleMobileChat()">💬 Chat</button>
+    <button class="ribbon-btn exit-room-btn" onclick="exitRoom()">Exit Room</button>
   </div>
 
   <!-- ROOM BODY -->
@@ -1048,6 +1028,17 @@ button{
               <div class="round-scores-mini" id="rr-scores"></div>
               <p style="font-size:.68rem;color:var(--text-faint)">Starting next round…!</p>
             </div>
+            <!-- v25: Leaderboard inside canvas-area instead of full-page overlay -->
+            <div class="sc-overlay hidden" id="ov-leaderboard">
+              <span style="font-size:2.2rem;">🏆</span>
+              <h2>Leaderboard</h2>
+              <div id="lb-sub" style="font-size:.65rem;color:var(--text-dim);">Final standings</div>
+              <div id="lb-list" class="lb-list-inline"></div>
+              <div style="display:flex;gap:.4rem;width:100%;max-width:280px;">
+                <button class="ov-btn" style="flex:2;font-size:.68rem;padding:.55rem .6rem;" onclick="openGCM()">Play Again</button>
+                <button class="ov-btn sec" style="flex:1;font-size:.68rem;padding:.55rem .6rem;" onclick="closeLB()">Close</button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1108,7 +1099,6 @@ button{
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
           </button>
         </div>
-        <div class="landscape-hint">📱 Rotate to landscape for a better experience</div>
       </div>
       <!-- InkMind chat -->
       <div class="chat-panel hidden" id="chat-ink">
@@ -1162,7 +1152,6 @@ button{
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
           </button>
         </div>
-        <div class="landscape-hint">📱 Rotate to landscape for a better experience</div>
       </div>
     </div><!-- /room-right -->
   </div><!-- /room-body -->
@@ -1259,6 +1248,7 @@ let pendingVideoState=null; // {videoId, timestamp, isPlaying}
 let mobileChatOpen=false;
 let latestHostTimestamp=0, latestHostPlaying=false; // tracks host position for sync
 let lastLocalSyncAt=0; // v22: timestamp of our last sync-event emission — suppresses heartbeat snap-back
+let _stateDebounce=null; // v26: debounce rapid onPlayerState events during mobile seek
 
 /* ══════ NAMES ══════ */
 const ADJ=['Swift','Calm','Bright','Bold','Clear','Keen','Noble','Sage','Warm','Vivid','Crisp','Pure','Quiet','Sharp','Steady','True','Brave','Witty','Clever','Gentle','Amber','Azure','Silver','Golden','Agile','Earnest','Focused','Loyal','Serene','Valiant'];
@@ -1334,7 +1324,7 @@ function removePendingDot(){const d=document.getElementById('watch-pending-dot')
 
 /* ══════ GAME CONFIG ══════ */
 function openGCM(){
-  document.getElementById('lb-overlay').classList.remove('open');
+  document.getElementById('ov-lobby').classList.add('hidden');
   gameRounds=1;document.getElementById('rounds-val').textContent=1;
   document.getElementById('gcm-bg').classList.add('open');
 }
@@ -1354,9 +1344,11 @@ function showLB(scores,rounds){
       <span class="lb-pts">${s.score} pts</span>
     </div>`).join('');
   document.getElementById('lb-sub').textContent=`${rounds} round${rounds!==1?'s':''} completed`;
-  document.getElementById('lb-overlay').classList.add('open');
+  // v25: Show as sc-overlay inside canvas-area instead of full-page overlay
+  hideAllOv();
+  showOv('ov-leaderboard');
 }
-function closeLB(){document.getElementById('lb-overlay').classList.remove('open');}
+function closeLB(){hideAllOv();showOv('ov-lobby');checkLobbyMinPlayers();}
 
 function updateLiveScores(scores){
   const bar=document.getElementById('live-score-bar');
@@ -1407,7 +1399,8 @@ async function loadFromTray(){
   ytLoaded=true;
   if(!window.YT||!window.YT.Player)await loadYTAPI();
   await createPlayer(vid,0);
-  if(isHost){socket.emit('change-video',{videoId:vid});startHeartbeat();}
+  if(socket)socket.emit('change-video',{videoId:vid});
+  if(isHost)startHeartbeat();
   switchTab('watch');
   document.getElementById('yt-tray-input').value='';
 }
@@ -1420,13 +1413,7 @@ function adjustMobileLayout(tab){
   const rl=document.getElementById('room-left');
   if(!rl)return;
   if(portrait){
-    if(tab==='ink'){
-      const rb=document.querySelector('.room-body');
-      const bh=rb?rb.offsetHeight:Math.max(1,window.innerHeight-48-40-52);
-      rl.style.flex='0 0 '+Math.round(bh*0.56)+'px';
-    }else{
-      rl.style.flex='';  // auto — video aspect-ratio sizes it
-    }
+    rl.style.flex='';  // auto for both tabs — CSS aspect-ratio sizes room-left
   }else{
     rl.style.flex='';  // landscape / desktop: CSS handles it
   }
@@ -1602,13 +1589,14 @@ function loadYTAPI(){
     document.head.appendChild(s);window.onYouTubeIframeAPIReady=res;
   });
 }
-function createPlayer(videoId,startTime){
+function createPlayer(videoId,startTime,autoplay){
   return new Promise(res=>{
     document.getElementById('yt-player').innerHTML='';
+    _videoEnded=false; // v28: reset ended flag for new video
     isSyncing=true; // prevent onPlayerState from emitting sync-events while loading
     player=new YT.Player('yt-player',{
       videoId,
-      playerVars:{autoplay:0,start:Math.floor(startTime||0),rel:0,modestbranding:1,playsinline:1},
+      playerVars:{autoplay:autoplay?1:0,start:Math.floor(startTime||0),rel:0,modestbranding:1,playsinline:1,origin:window.location.origin},
       events:{
         onReady:e=>{
           if(startTime>1)e.target.seekTo(startTime,true);
@@ -1618,30 +1606,59 @@ function createPlayer(videoId,startTime){
           setTimeout(()=>{isSyncing=false;},1200);
           res();
         },
-        onStateChange:onPlayerState
+        onStateChange:onPlayerState,
+        onError:e=>{
+          // YouTube error codes: 2=invalid param, 5=HTML5 error, 100=not found, 101/150=embed restricted
+          const code=e.data;
+          const msgs={2:'Invalid video ID',5:'HTML5 player error',100:'Video not found',101:'Video cannot be embedded',150:'Video cannot be embedded'};
+          toast('⚠️ '+(msgs[code]||'Video unavailable (error '+code+')')+'. Try a different video.');
+          isSyncing=false;
+          res(); // resolve so callers don't hang
+        }
       }
     });
   });
 }
+let _videoEnded=false; // v28: tracks ENDED state to prevent heartbeat loop
 function onPlayerState(ev){
   if(isSyncing)return;
-  if(ev.data===YT.PlayerState.PLAYING){
-    guestHasInteracted=true;
+  // v28: Track ENDED state — prevents heartbeat from restarting finished video
+  if(ev.data===YT.PlayerState.ENDED){
+    _videoEnded=true;
     if(socket&&roomCode){
-      const t=player.getCurrentTime();
-      socket.emit('sync-event',{type:'play',timestamp:t,sentAt:Date.now()});
-      lastLocalSyncAt=Date.now(); // protect from heartbeat snap-back
+      socket.emit('sync-event',{type:'pause',timestamp:player.getCurrentTime(),sentAt:Date.now()});
+      lastLocalSyncAt=Date.now();
     }
-    // v22 Fix #9: clear pause banner when local user plays
-    clearPauseBanner();
-  }else if(ev.data===YT.PlayerState.PAUSED){
-    if(socket&&roomCode){
+    return;
+  }
+  if(ev.data===YT.PlayerState.PLAYING||ev.data===YT.PlayerState.PAUSED){
+    _videoEnded=false; // v28: clear ended flag on any play/pause
+    // v26: Debounce rapid state changes from YouTube during mobile seek (PAUSED→PLAYING).
+    // Without this, seeking emits TWO sync-events: pause@old_pos then play@new_pos,
+    // causing other clients to jump back then forward ("re-run" artifact).
+    if(_stateDebounce)clearTimeout(_stateDebounce);
+    _stateDebounce=setTimeout(()=>{
+      _stateDebounce=null;
+      if(!player||isSyncing)return;
+      const state=player.getPlayerState();
       const t=player.getCurrentTime();
-      socket.emit('sync-event',{type:'pause',timestamp:t,sentAt:Date.now()});
-      lastLocalSyncAt=Date.now(); // protect from heartbeat snap-back
-    }
-    // v22 Fix #9: show persistent pause banner for local user
-    showPauseBanner(myUsername);
+      if(state===YT.PlayerState.PLAYING){
+        guestHasInteracted=true;
+        if(socket&&roomCode){
+          socket.emit('sync-event',{type:'play',timestamp:t,sentAt:Date.now()});
+          lastLocalSyncAt=Date.now(); // protect from heartbeat snap-back
+        }
+        // v22 Fix #9: clear pause banner when local user plays
+        clearPauseBanner();
+      }else if(state===YT.PlayerState.PAUSED){
+        if(socket&&roomCode){
+          socket.emit('sync-event',{type:'pause',timestamp:t,sentAt:Date.now()});
+          lastLocalSyncAt=Date.now(); // protect from heartbeat snap-back
+        }
+        // v22 Fix #9: show persistent pause banner for local user
+        showPauseBanner(myUsername);
+      }
+    },200);
   }
 }
 function extractVid(url){const m=(url||'').match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/);return m?m[1]:null;}
@@ -2008,11 +2025,11 @@ function stopCC(){if(ccDrawerTimer){clearInterval(ccDrawerTimer);ccDrawerTimer=n
 
 /* ══════ OVERLAYS ══════ */
 function showOv(id){
-  ['ov-lobby','ov-choice','ov-choosing','ov-round-end'].forEach(oid=>{
+  ['ov-lobby','ov-choice','ov-choosing','ov-round-end','ov-leaderboard'].forEach(oid=>{
     document.getElementById(oid)?.classList.toggle('hidden',oid!==id);
   });
 }
-function hideAllOv(){['ov-lobby','ov-choice','ov-choosing','ov-round-end'].forEach(id=>document.getElementById(id)?.classList.add('hidden'));}
+function hideAllOv(){['ov-lobby','ov-choice','ov-choosing','ov-round-end','ov-leaderboard'].forEach(id=>document.getElementById(id)?.classList.add('hidden'));}
 
 function updateTimer(v){
   document.getElementById('timer-ring').classList.remove('hidden');
@@ -2070,6 +2087,40 @@ function doQuickJoin(){
   setTopCode(code);setUserBadge(username);
   initSocket();
   socket.emit('join-room',{roomCode:code,username});
+}
+
+/* ══════ EXIT ROOM ══════ */
+function exitRoom(){
+  // Disconnect socket
+  if(socket){try{socket.disconnect();}catch(e){} socket=null;}
+  // Destroy peer connection
+  if(peer){try{peer.destroy();}catch(e){} peer=null;}
+  // Stop heartbeat
+  stopHeartbeat();
+  // Stop local media stream
+  if(localStream){localStream.getTracks().forEach(t=>t.stop());localStream=null;}
+  // Destroy YouTube player
+  if(player){try{player.destroy();}catch(e){} player=null;ytLoaded=false;}
+  // Reset state
+  isHost=false;isSyncing=false;roomCode=null;roomMode='stream';
+  guestHasInteracted=false;currentTab='watch';
+  participantCount=1;participantNames=[];
+  mobileChatOpen=false;isDrawer=false;scribbleActive=false;
+  voiceState='idle';isMuted=true;peerRetries=0;
+  // Clear chat messages
+  ['watch-msgs','ink-msgs'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el){el.querySelectorAll('.chat-msg,.system-msg').forEach(m=>m.remove());}
+  });
+  // Reset UI
+  document.getElementById('page-room').classList.add('hidden');
+  document.getElementById('quick-join').classList.add('hidden');
+  document.getElementById('page-landing').classList.remove('hidden');
+  document.getElementById('code-chip').classList.add('hidden');
+  document.getElementById('room-left').style.flex='';
+  document.getElementById('room-right').style.maxHeight='';
+  // Clean URL params
+  if(window.history.replaceState)window.history.replaceState({},'',window.location.pathname);
 }
 
 /* ══════ UI HELPERS ══════ */
@@ -2202,32 +2253,50 @@ function clearPauseBanner(){
   if(el)el.remove();
 }
 
-/* Fix 6: Keyboard-aware layout — when keyboard opens in portrait, shrink room-right
-   so the video/canvas (room-left) stays fully visible at the top.
-   Strategy: room-left is flex:0 0 auto (sized by content), so we clamp room-right's
-   max-height to whatever space is left after the keyboard appears. */
+/* Fix 6: Keyboard-aware layout — when keyboard opens in portrait, constrain
+   page-room to visualViewport height and freeze room-left so the video/canvas
+   stays fully visible.  The keyboard only overlays the chat (room-right).
+   Works identically for Watch (auto-height video) and InkMind (JS-set canvas). */
+let _preKbdRlH=0; // room-left height captured before keyboard opens
 function applyKeyboardLayout(){
   if(!window.visualViewport)return;
   const portrait=window.innerWidth<640&&window.innerHeight>window.innerWidth;
+  const pr=document.getElementById('page-room');
   const rr=document.getElementById('room-right');
   const rl=document.getElementById('room-left');
-  if(!rr||!rl)return;
-  if(!portrait){rr.style.maxHeight='';return;}
+  if(!rr||!rl||!pr)return;
+  if(!portrait){rr.style.maxHeight='';rl.style.height='';pr.style.height='';return;}
   const vvh=Math.round(window.visualViewport.height);
   const kbdH=Math.max(0,window.innerHeight-vvh);
   if(kbdH>80){
-    // Keyboard open — room-left stays its natural height, room-right gets remaining space
-    const rlH=rl.offsetHeight;
+    // Keyboard open — lock page-room to visible viewport so nothing hides behind kbd
+    pr.style.height=vvh+'px';
+    // Freeze room-left at its pre-keyboard height so canvas doesn't shrink/shift
+    if(!_preKbdRlH)_preKbdRlH=rl.offsetHeight;
+    rl.style.flex='0 0 '+_preKbdRlH+'px';
+    rl.style.height=_preKbdRlH+'px';
+    // Hide dock while keyboard is open — reclaims ~52px for the chat area
+    const dock=document.querySelector('.dock');
+    if(dock)dock.style.display='none';
+    // room-right gets whatever space remains (dock excluded since hidden)
     const topbarH=document.querySelector('.topbar')?.offsetHeight||48;
-    const ribbonH=document.querySelector('.ribbon')?.offsetHeight||40;
-    const dockH=document.querySelector('.dock')?.offsetHeight||52;
-    const usedH=topbarH+ribbonH+rlH+dockH;
-    const remaining=Math.max(vvh-usedH,80); // at least 80px for chat
+    const ribbonH=document.querySelector('.mode-ribbon')?.offsetHeight||40;
+    const usedH=topbarH+ribbonH+_preKbdRlH;
+    const remaining=Math.max(vvh-usedH,80);
     rr.style.maxHeight=remaining+'px';
-    document.getElementById('page-room').classList.add('kbd-open');
+    pr.classList.add('kbd-open');
   }else{
+    // Keyboard closed — restore everything
+    _preKbdRlH=0;
     rr.style.maxHeight='';
-    document.getElementById('page-room').classList.remove('kbd-open');
+    rl.style.height='';
+    pr.style.height='';
+    // Restore dock visibility
+    const dock=document.querySelector('.dock');
+    if(dock)dock.style.display='';
+    pr.classList.remove('kbd-open');
+    // Re-apply tab-specific room-left sizing
+    adjustMobileLayout(currentTab);
     if(currentTab==='ink')requestAnimationFrame(()=>requestAnimationFrame(resizeCanvas));
   }
 }
@@ -2261,6 +2330,8 @@ function initSocket(){
   socket.on('guest-joined',({guestCount:gc,guestName,participants})=>{
     participantCount=gc+1;
     if(participants)setMembers(participants);
+    // v28: Re-check lobby gating so Start Game button appears when 2+ players
+    checkLobbyMinPlayers();
     showChatNotif(`👋 ${guestName} joined`);
     sysChat('watch',`👋 ${guestName} joined`);
   });
@@ -2278,40 +2349,39 @@ function initSocket(){
     document.getElementById('wait-msg').classList.add('hidden');
     checkLobbyMinPlayers();
 
-    if(mode==='game'){
-      document.getElementById('no-video').style.display='flex';ytLoaded=false;switchTab('ink');
-    }else if(videoId){
-      // CRITICAL FIX #7: Load player, seek to host position, then prompt user to tap-to-play
-      // (browser autoplay policy blocks programmatic play after async chain; tap-to-play always works)
+    if(videoId){
+      // Video loaded — sync regardless of room mode (stream or game)
       ytLoaded=true;
-      
       document.getElementById('no-video').style.display='none';
-      // Store host state so doSyncPlay() seeks accurately
       latestHostTimestamp=timestamp||0;
       latestHostPlaying=isPlaying;
       latestHostReceived=Date.now()/1000;
-      await loadYTAPI();
-      // Create player seeked to host position (cued but not playing)
-      await createPlayer(videoId, latestHostTimestamp);
-      // Refresh received-time after async load — keeps elapsed estimate in doSyncPlay accurate
-      latestHostReceived=Date.now()/1000;
-      switchTab('watch');
-      if(isPlaying){
-        // Show tap-to-play prompt — this is a user gesture so playVideo() will succeed
-        const sp=document.getElementById('sync-prompt');
-        if(sp)sp.classList.add('show');
-      }else{
-        // v22 Fix #4: Host is paused — explicitly force-pause after creation.
-        // YouTube iframe can auto-play briefly despite autoplay:0; this kills it immediately.
-        isSyncing=true;
-        try{player.pauseVideo();}catch(e){}
-        // Also re-pause after a short delay to catch any deferred auto-play from YouTube
-        setTimeout(()=>{try{player.pauseVideo();}catch(e){}},300);
-        setTimeout(()=>{try{player.pauseVideo();}catch(e){}},800);
-        setTimeout(()=>{isSyncing=false;},1500);
+      try{
+        await loadYTAPI();
+        // v28: Always autoplay on join so YouTube renders a frame (prevents black canvas).
+        // If host was paused, we pause immediately after in the safeguard below.
+        await createPlayer(videoId, latestHostTimestamp, true);
+        latestHostReceived=Date.now()/1000;
+        guestHasInteracted=true;
+        // v25 Critical safeguard: enforce paused state if host is not playing
+        // v28: This now also prevents autoplay from continuing when host had paused
+        if(!latestHostPlaying && player){
+          isSyncing=true;
+          player.pauseVideo();
+          setTimeout(()=>{isSyncing=false;},400);
+        }
+        switchTab('watch');
+      }catch(err){
+        console.error('Player creation failed:',err);
+        toast('⚠️ Video failed to load — try refreshing');
+        document.getElementById('no-video').style.display='flex';
+        switchTab(mode==='game'?'ink':'watch');
       }
     }else{
-      document.getElementById('no-video').style.display='flex';switchTab('watch');
+      // No video yet
+      document.getElementById('no-video').style.display='flex';
+      ytLoaded=false;
+      switchTab(mode==='game'?'ink':'watch');
     }
     initCanvas();initVoice();
   });
@@ -2365,6 +2435,9 @@ function initSocket(){
     // Long isSyncing window (1200ms) — prevents onPlayerState re-emit and
     // blocks the next heartbeat from overriding this state while YT resolves the command
     isSyncing=true;
+    // v28: Also protect receiver from heartbeat snap-back after applying a sync-event
+    lastLocalSyncAt=Date.now();
+    _videoEnded=false; // v28: clear ended flag — someone explicitly played/paused
     if(Math.abs(player.getCurrentTime()-adjTs)>0.3)player.seekTo(adjTs,true);
     if(type==='play'){
       player.playVideo();guestHasInteracted=true;
@@ -2391,11 +2464,15 @@ function initSocket(){
     if(!player||isHost)return;
     // Skip all state changes while isSyncing — prevents heartbeat overriding a just-applied sync-event
     if(isSyncing)return;
-    // v22 Fix #1: Skip corrections if WE recently emitted a sync-event (seek/play/pause).
+    // v28: Skip heartbeat corrections when video has ended — prevents infinite restart loop
+    if(_videoEnded)return;
+    // v22 Fix #1: Skip corrections if WE recently emitted or received a sync-event (seek/play/pause).
     // The heartbeat may carry a stale host position that hasn't settled to our seek target yet.
     if(Date.now()-lastLocalSyncAt<3500)return;
     if(Math.abs(player.getCurrentTime()-timestamp)>0.5){isSyncing=true;player.seekTo(timestamp,true);flashSync();setTimeout(()=>{isSyncing=false;},400);}
     const myPlay=player.getPlayerState()===YT.PlayerState.PLAYING;
+    // v27: Restored v24 guestHasInteracted guard — only heartbeat-play if user has interacted
+    // (respects mobile autoplay policy, prevents force-play before user gesture)
     if(isPlaying&&!myPlay&&guestHasInteracted){isSyncing=true;player.playVideo();setTimeout(forceRepaint,100);setTimeout(()=>{isSyncing=false;},400);}
     else if(!isPlaying&&myPlay){isSyncing=true;player.pauseVideo();setTimeout(()=>{isSyncing=false;},400);}
   });
@@ -2417,25 +2494,30 @@ function initSocket(){
     if(!videoId)return;
     ytLoaded=true;
     document.getElementById('no-video').style.display='none';
-    
     latestHostTimestamp=timestamp||0;latestHostPlaying=isPlaying;latestHostReceived=Date.now()/1000;
     // Destroy old player so new video always starts clean
     if(player){try{player.destroy();}catch(e){}player=null;}
-    if(!window.YT||!window.YT.Player)await loadYTAPI();
-    await createPlayer(videoId,latestHostTimestamp);
-    switchTab('watch');removePendingDot();
-    if(isPlaying){
-      // Show sync-prompt — user tap required due to browser autoplay policy
-      const sp=document.getElementById('sync-prompt');if(sp)sp.classList.add('show');
-    }else{
-      toast('✓ New video loaded!');
+    try{
+      if(!window.YT||!window.YT.Player)await loadYTAPI();
+      await createPlayer(videoId,latestHostTimestamp,!!isPlaying);
+      guestHasInteracted=true;
+      switchTab('watch');removePendingDot();
+      toast(isPlaying?'✓ New video playing!':'✓ New video loaded!');
+    }catch(err){
+      console.error('watch-sync player creation failed:',err);
+      toast('⚠️ Video failed to load — try refreshing');
+      document.getElementById('no-video').style.display='flex';
     }
   });
   // change-video: server now emits watch-sync directly to recipients; sender handles locally in loadNextVideo()
 
   socket.on('chat-message',({text,username,channel,fromSelf_id})=>{
-    // For scribble (guess) channel: show self's echoed guesses (wrong ones). For watch: suppress self (already shown locally).
-    if(channel!=='scribble'&&fromSelf_id===socket.id)return;
+    // v28: Suppress self-echo for ALL channels — sendChat already appends locally.
+    // Exception: scribble wrong-guess echoes (scribbleActive && guesser) were NOT locally appended.
+    if(fromSelf_id===socket.id){
+      const isWrongGuessEcho=channel==='scribble'&&scribbleActive&&!isDrawer;
+      if(!isWrongGuessEcho)return; // already shown locally via sendChat
+    }
     const ch=channel==='scribble'?'ink':'watch';
     appendChat({ch,text,username,self:(fromSelf_id===socket.id)});
   });
@@ -2642,8 +2724,8 @@ function initSocket(){
       sysChat('ink',`🏆 Game over! ${rounds} rounds done.`);
     }
     hideAllOv();
-    showOv('ov-lobby');
     checkLobbyMinPlayers();
+    // v25: showLB now displays ov-leaderboard inside canvas; closeLB returns to ov-lobby
     showLB(scores||[],rounds);
   });
 
