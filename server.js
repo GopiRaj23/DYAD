@@ -251,10 +251,13 @@ io.on('connection', (socket) => {
     // v22: Extended from 1.5s to 3.5s — gives YouTube enough time to buffer+settle at a new
     // seek position before the host's heartbeat resumes authority over the room state.
     const msSinceSync = Date.now() - room.lastUpdate;
-    const effectivePlaying = msSinceSync < 3500 ? room.isPlaying : isPlaying;
-    const effectiveTimestamp = msSinceSync < 3500 ? room.timestamp + (room.isPlaying ? msSinceSync/1000 : 0) : timestamp;
-    room.timestamp = effectiveTimestamp; room.isPlaying = effectivePlaying; room.lastUpdate = Date.now();
-    socket.to(socket.roomCode).emit('heartbeat', { timestamp: effectiveTimestamp, isPlaying: effectivePlaying });
+    if (msSinceSync < 3500) {
+      // Grace period: a sync-event just happened — don't override with host heartbeat.
+      // The sync-event already broadcast the correct state to all clients.
+      return;
+    }
+    room.timestamp = timestamp; room.isPlaying = isPlaying; room.lastUpdate = Date.now();
+    socket.to(socket.roomCode).emit('heartbeat', { timestamp, isPlaying });
   });
 
   socket.on('send-emoji', ({ emoji }) => {

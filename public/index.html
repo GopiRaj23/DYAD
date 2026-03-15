@@ -690,7 +690,7 @@ button{
   .color-swatch{width:18px;height:18px;flex-shrink:0;}
   .canvas-act{font-size:.5rem;padding:.18rem .38rem;}
   .brush-slider{width:42px;}
-  .scribble-wrap{flex:1;min-height:0;}
+  .scribble-wrap{flex:none;width:100%;aspect-ratio:4/3;min-height:0;}
 
   /* ── Dock: essentials only ── */
   .dock-inner{justify-content:flex-start;gap:.28rem;padding:0;}
@@ -1417,13 +1417,7 @@ function adjustMobileLayout(tab){
   const rl=document.getElementById('room-left');
   if(!rl)return;
   if(portrait){
-    if(tab==='ink'){
-      const rb=document.querySelector('.room-body');
-      const bh=rb?rb.offsetHeight:Math.max(1,window.innerHeight-48-40-52);
-      rl.style.flex='0 0 '+Math.round(bh*0.56)+'px';
-    }else{
-      rl.style.flex='';  // auto — video aspect-ratio sizes it
-    }
+    rl.style.flex='';  // auto for both tabs — CSS aspect-ratio sizes room-left
   }else{
     rl.style.flex='';  // landscape / desktop: CSS handles it
   }
@@ -2335,11 +2329,8 @@ function initSocket(){
     document.getElementById('wait-msg').classList.add('hidden');
     checkLobbyMinPlayers();
 
-    if(mode==='game'){
-      document.getElementById('no-video').style.display='flex';ytLoaded=false;switchTab('ink');
-    }else if(videoId){
-      // Load player at host's current position — mirrors original working logic:
-      // pass isPlaying to createPlayer so YT-native autoplay:1 handles playback.
+    if(videoId){
+      // Video loaded — sync regardless of room mode (stream or game)
       ytLoaded=true;
       document.getElementById('no-video').style.display='none';
       latestHostTimestamp=timestamp||0;
@@ -2352,14 +2343,16 @@ function initSocket(){
         guestHasInteracted=true;
         switchTab('watch');
       }catch(err){
-        // If player creation fails, show error instead of silent "No video yet"
         console.error('Player creation failed:',err);
         toast('⚠️ Video failed to load — try refreshing');
         document.getElementById('no-video').style.display='flex';
-        switchTab('watch');
+        switchTab(mode==='game'?'ink':'watch');
       }
     }else{
-      document.getElementById('no-video').style.display='flex';switchTab('watch');
+      // No video yet
+      document.getElementById('no-video').style.display='flex';
+      ytLoaded=false;
+      switchTab(mode==='game'?'ink':'watch');
     }
     initCanvas();initVoice();
   });
