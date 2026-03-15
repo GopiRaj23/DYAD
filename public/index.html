@@ -1589,7 +1589,7 @@ function loadYTAPI(){
     document.head.appendChild(s);window.onYouTubeIframeAPIReady=res;
   });
 }
-function createPlayer(videoId,startTime,autoplay){
+function createPlayer(videoId,startTime,autoplay,muteForAutoplay){
   return new Promise(res=>{
     document.getElementById('yt-player').innerHTML='';
     _videoEnded=false; // v28: reset ended flag for new video
@@ -1599,6 +1599,9 @@ function createPlayer(videoId,startTime,autoplay){
       playerVars:{autoplay:autoplay?1:0,start:Math.floor(startTime||0),rel:0,modestbranding:1,playsinline:1,origin:window.location.origin},
       events:{
         onReady:e=>{
+          // v32: Mute before autoplay so mobile browsers allow it (muted autoplay is permitted).
+          // Caller is responsible for unmuting after pausing.
+          if(muteForAutoplay)e.target.mute();
           if(startTime>1)e.target.seekTo(startTime,true);
           // FIX 3: explicitly pin GPU layer on the newly-created iframe element
           setTimeout(pinIframeGPULayer,200);
@@ -1709,25 +1712,8 @@ function doSyncPlay(){
   player.playVideo(); // safe: this IS a user gesture (button click)
 
   guestHasInteracted=true; // unlock heartbeat-driven sync for future drift corrections
-  // v31: If host is paused, briefly play to activate YouTube controls on mobile,
-  // then pause once the player actually starts. The onStateChange PLAYING event
-  // won't fire a sync-event because isSyncing is true.
-  if(!latestHostPlaying){
-    const onActive=function(ev){
-      if(ev.data===YT.PlayerState.PLAYING){
-        player.removeEventListener('onStateChange',onActive);
-        player.pauseVideo();
-        player.seekTo(target,true);
-        lastLocalSyncAt=Date.now();
-        setTimeout(()=>{isSyncing=false;startSeekPoll();},600);
-      }
-    };
-    player.addEventListener('onStateChange',onActive);
-    toast('✓ Video ready — controls active');
-  }else{
-    setTimeout(()=>{isSyncing=false;},500);
-    toast('✓ Playing in sync with host!');
-  }
+  setTimeout(()=>{isSyncing=false;},500);
+  toast('✓ Playing in sync with host!');
 }
 let latestHostReceived=Date.now()/1000; // timestamp when we last got a heartbeat
 async function loadNextVideo(){
@@ -2395,25 +2381,21 @@ function initSocket(){
       latestHostReceived=Date.now()/1000;
       try{
         await loadYTAPI();
-        // v31: If host is paused, create player without autoplay and show sync-prompt.
-        // On mobile, autoplay is blocked — calling pauseVideo() on an unstarted player
-        // leaves YouTube in a state with no controls bar (no seek, no play/pause).
-        // The sync-prompt gives the user a tap target that counts as a user gesture,
-        // which activates the YouTube controls and syncs to the host position.
-        if(!latestHostPlaying){
-          await createPlayer(videoId, latestHostTimestamp, false);
-          latestHostReceived=Date.now()/1000;
-          const sp=document.getElementById('sync-prompt');
-          if(sp){
-            sp.querySelector('.sync-prompt-label').textContent='Video is paused — tap to load controls';
-            sp.querySelector('.sync-play-btn').textContent='▶ Tap to Start';
-            sp.classList.add('show');
-          }
-        }else{
-          // v28: Autoplay on join when host is playing (prevents black canvas)
-          await createPlayer(videoId, latestHostTimestamp, true);
-          latestHostReceived=Date.now()/1000;
-          guestHasInteracted=true;
+        // v28: Always autoplay on join so YouTube renders a frame (prevents black canvas).
+        // v32: When host is paused, mute before autoplay so mobile browsers allow it
+        // (muted autoplay is permitted on mobile). Unmute after pausing so audio works on next play.
+        const hostPaused=!latestHostPlaying;
+        await createPlayer(videoId, latestHostTimestamp, true, hostPaused);
+        latestHostReceived=Date.now()/1000;
+        guestHasInteracted=true;
+        // v25 Critical safeguard: enforce paused state if host is not playing
+        // v28: This now also prevents autoplay from continuing when host had paused
+        if(hostPaused && player){
+          isSyncing=true;
+          player.pauseVideo();
+          // v32: unmute after pausing — audio will work when user plays next
+          player.unMute();
+          setTimeout(()=>{isSyncing=false;},400);
         }
         switchTab('watch');
       }catch(err){
