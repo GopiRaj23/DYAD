@@ -207,6 +207,9 @@ button{
 }
 .code-chip:hover{border-color:var(--border-hi);color:var(--gold);}
 .code-chip.copied{border-color:var(--green);color:var(--green);}
+/* v27: exit room button */
+.exit-room-btn{background:transparent;border:1px solid var(--border);border-radius:var(--r-xs);padding:.24rem .52rem;font-size:.61rem;letter-spacing:.08em;color:var(--text-dim);cursor:pointer;transition:border-color .2s,color .2s,background .2s;white-space:nowrap;flex-shrink:0;}
+.exit-room-btn:hover{border-color:#e74c3c;color:#e74c3c;background:rgba(231,76,60,.08);}
 
 /* RIBBON */
 .mode-ribbon{
@@ -946,6 +949,7 @@ button{
       <div class="code-chip hidden" id="code-chip" onclick="copyChip()" title="Copy room invite link">
         🔗 Copy Room Link&nbsp;<strong id="topbar-code">——</strong>
       </div>
+      <button class="exit-room-btn" id="exit-room-btn" onclick="leaveRoom()" title="Leave room">✕ Exit</button>
     </div>
   </div>
 
@@ -1888,7 +1892,10 @@ function onType(ch){
   if(ch==='watch'){if(!wTyping){wTyping=true;socket.emit('typing-start',{channel:'watch'});}clearTimeout(wTypingTimer);wTypingTimer=setTimeout(()=>{wTyping=false;socket.emit('typing-stop',{channel:'watch'});},1600);}
   else{if(!iTyping){iTyping=true;socket.emit('typing-start',{channel:'scribble'});}clearTimeout(iTypingTimer);iTypingTimer=setTimeout(()=>{iTyping=false;socket.emit('typing-stop',{channel:'scribble'});},1600);}
 }
+let _sendLock=false; // v27: debounce guard — prevents double-send on mobile (keydown+onclick fire simultaneously)
 function sendChat(ch){
+  if(_sendLock)return; // CRITICAL SAFEGUARD: blocks second call before inp.value clears
+  _sendLock=true;setTimeout(()=>{_sendLock=false;},300);
   const inp=document.getElementById(ch+'-input');
   const text=(inp?.value||'').trim();if(!text||!socket)return;
   if(ch==='ink'&&scribbleActive&&!isDrawer){
@@ -2078,6 +2085,16 @@ function showRoom(){
   document.getElementById('page-landing').classList.add('hidden');
   document.getElementById('quick-join').classList.add('hidden');
   document.getElementById('page-room').classList.remove('hidden');
+}
+// v27: Exit room — disconnect and return to landing
+function leaveRoom(){
+  stopHeartbeat();
+  if(socket){try{socket.disconnect();}catch(e){} socket=null;}
+  if(peer){try{peer.destroy();}catch(e){} peer=null;}
+  // Reset room state
+  roomCode='';myUsername='';isHost=false;
+  document.getElementById('page-room').classList.add('hidden');
+  document.getElementById('page-landing').classList.remove('hidden');
 }
 function setTopCode(c){roomCode=c||roomCode;document.getElementById('topbar-code').textContent=c||roomCode;document.getElementById('code-chip').classList.remove('hidden');}
 // #1: username shown in chat header, not topbar
