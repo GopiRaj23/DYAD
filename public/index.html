@@ -816,6 +816,24 @@ button{
 .ribbon-chat-btn.active{color:var(--gold);background:rgba(225,193,121,.05);}
 
 /* Role strip removed — role now shows in chat-header-right */
+
+/* ── v32: FEEDBACK BUTTON & MODAL ───────────────────────────────────────── */
+#feedback-btn{position:fixed;z-index:9000;background:var(--surface2);border:1px solid var(--border-hi);color:var(--text-dim);font-size:.62rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;border-radius:var(--r-sm);padding:.42rem .9rem;cursor:pointer;transition:all .2s;opacity:.7;}
+#feedback-btn:hover{opacity:1;background:var(--teal);color:var(--text);}
+#feedback-btn.pos-center{left:50%;bottom:1.2rem;transform:translateX(-50%);}
+#feedback-btn.pos-corner{right:1.1rem;bottom:1.2rem;}
+#feedback-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.62);z-index:9100;align-items:center;justify-content:center;}
+#feedback-overlay.show{display:flex;}
+#feedback-modal{background:var(--surface);border:1px solid var(--border-hi);border-radius:var(--r);padding:1.4rem 1.6rem;width:min(92vw,400px);display:flex;flex-direction:column;gap:.9rem;}
+#feedback-modal h3{font-family:var(--font-brand);font-size:1.05rem;color:var(--gold);margin:0;}
+#feedback-modal input,#feedback-modal textarea{width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border-hi);border-radius:var(--r-xs);color:var(--text);font-size:.78rem;padding:.5rem .7rem;font-family:var(--font-body);}
+#feedback-modal textarea{resize:vertical;min-height:110px;}
+.fb-char{font-size:.6rem;color:var(--text-faint);text-align:right;margin-top:-.5rem;}
+.fb-row{display:flex;gap:.6rem;justify-content:flex-end;}
+.fb-cancel{background:transparent;border:1px solid var(--border);color:var(--text-dim);border-radius:var(--r-xs);padding:.4rem .9rem;font-size:.68rem;cursor:pointer;}
+.fb-submit{background:var(--gold);border:none;color:var(--bg-deep);font-size:.68rem;font-weight:700;border-radius:var(--r-xs);padding:.4rem .9rem;cursor:pointer;}
+.fb-submit:disabled{opacity:.5;cursor:default;}
+/* ─────────────────────────────────────────────────────────────────────────── */
 </style>
 </head>
 <body>
@@ -2126,6 +2144,7 @@ function showRoom(){
   document.getElementById('page-landing').classList.add('hidden');
   document.getElementById('quick-join').classList.add('hidden');
   document.getElementById('page-room').classList.remove('hidden');
+  updateFeedbackPos(); // v32: reposition feedback btn to bottom-right
 }
 // v27: Exit room — disconnect and return to landing
 function leaveRoom(){
@@ -2142,6 +2161,7 @@ function leaveRoom(){
   roomCode='';myUsername='';isHost=false;
   document.getElementById('page-room').classList.add('hidden');
   document.getElementById('page-landing').classList.remove('hidden');
+  updateFeedbackPos(); // v32: reposition feedback btn back to bottom-center
 }
 function setTopCode(c){roomCode=c||roomCode;document.getElementById('topbar-code').textContent=c||roomCode;document.getElementById('code-chip').classList.remove('hidden');}
 // #1: username shown in chat header, not topbar
@@ -2519,8 +2539,10 @@ function initSocket(){
   // change-video: server now emits watch-sync directly to recipients; sender handles locally in loadNextVideo()
 
   socket.on('chat-message',({text,username,channel,fromSelf_id})=>{
-    // For scribble (guess) channel: show self's echoed guesses (wrong ones). For watch: suppress self (already shown locally).
-    if(channel!=='scribble'&&fromSelf_id===socket.id)return;
+    // Suppress self-echo for all channels EXCEPT scribble guess-mode (wrong guesses aren't shown locally).
+    // v32 fix: previous guard `channel!=='scribble'&&self` missed ink regular-chat → caused duplication.
+    const isGuessEcho=(channel==='scribble'&&scribbleActive&&!isDrawer);
+    if(fromSelf_id===socket.id&&!isGuessEcho)return;
     const ch=channel==='scribble'?'ink':'watch';
     appendChat({ch,text,username,self:(fromSelf_id===socket.id)});
   });
@@ -2751,6 +2773,64 @@ function initSocket(){
   socket.on('canvas-clear',()=>{remoteStrokeHistory=[];if(drawCtx)drawCtx.clearRect(0,0,drawCanvas.width,drawCanvas.height);});
   socket.on('canvas-undo',()=>{remoteStrokeHistory.pop();redrawRemote();});
 }
+
+/* ── v32: FEEDBACK ───────────────────────────────────────────────────────── */
+function getFeedbackLabel(){
+  const pl=document.getElementById('page-landing');
+  if(pl&&!pl.classList.contains('hidden'))return'homepage';
+  return currentTab==='ink'?'inkmind':'cowatch';
+}
+function updateFeedbackPos(){
+  const btn=document.getElementById('feedback-btn');if(!btn)return;
+  const onLanding=!document.getElementById('page-landing').classList.contains('hidden');
+  btn.classList.toggle('pos-center',onLanding);
+  btn.classList.toggle('pos-corner',!onLanding);
+}
+function openFeedback(){document.getElementById('feedback-overlay').classList.add('show');}
+function closeFeedback(){document.getElementById('feedback-overlay').classList.remove('show');}
+document.getElementById('fb-text').addEventListener('input',function(){
+  document.getElementById('fb-count').textContent=this.value.length;
+});
+async function submitFeedback(){
+  const username=document.getElementById('fb-username').value.trim();
+  const feedbacktext=document.getElementById('fb-text').value.trim();
+  if(!username){alert('Please enter your name.');return;}
+  if(!feedbacktext){alert('Please enter your feedback.');return;}
+  const label=getFeedbackLabel();
+  const btn=document.getElementById('fb-submit');
+  btn.disabled=true;btn.textContent='Sending…';
+  try{
+    const r=await fetch('/api/feedback',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,feedbacktext,label})});
+    if(r.ok){
+      document.getElementById('fb-username').value='';
+      document.getElementById('fb-text').value='';
+      document.getElementById('fb-count').textContent='0';
+      closeFeedback();
+      toast('✓ Feedback submitted — thank you!');
+    }else{alert('Failed to submit. Please try again.');}
+  }catch(e){alert('Network error. Please try again.');}
+  btn.disabled=false;btn.textContent='Submit';
+}
+// Init position on load
+updateFeedbackPos();
+/* ─────────────────────────────────────────────────────────────────────────── */
 </script>
+
+<!-- v32: Feedback button (repositioned via updateFeedbackPos) -->
+<button id="feedback-btn" class="pos-center" onclick="openFeedback()">💬 Feedback</button>
+
+<!-- v32: Feedback modal -->
+<div id="feedback-overlay" onclick="if(event.target===this)closeFeedback()">
+  <div id="feedback-modal">
+    <h3>Beta Feedback</h3>
+    <input id="fb-username" type="text" maxlength="80" placeholder="Type in your actual name">
+    <textarea id="fb-text" maxlength="1000" placeholder="Please enter your feedback"></textarea>
+    <div class="fb-char"><span id="fb-count">0</span> / 1000</div>
+    <div class="fb-row">
+      <button class="fb-cancel" onclick="closeFeedback()">Cancel</button>
+      <button class="fb-submit" id="fb-submit" onclick="submitFeedback()">Submit</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
