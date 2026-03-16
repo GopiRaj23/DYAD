@@ -1558,7 +1558,7 @@ window.addEventListener('DOMContentLoaded',()=>{
 
   // Keyboard shortcuts
   document.addEventListener('keydown',e=>{
-    if(e.target.tagName==='INPUT')return;
+    if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA')return; // CRITICAL SAFEGUARD: don't steal keypresses from text inputs
     if(e.code==='Space'&&currentTab==='watch'){e.preventDefault();playPause();}
     if((e.ctrlKey||e.metaKey)&&e.key==='z'){e.preventDefault();if(currentTab==='ink'&&isDrawer)undoStroke();}
     if(e.key==='Escape'){
