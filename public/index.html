@@ -1377,6 +1377,8 @@ function ribbonWatch(){
     return;
   }
   if(roomMode==='game' && !ytLoaded){
+    // v29: Only the host gets the URL tray in game mode — guests just see the watch tab
+    if(!isHost){document.getElementById('yt-tray').classList.remove('open');switchTab('watch');return;}
     const tray=document.getElementById('yt-tray');
     tray.classList.toggle('open');
     if(tray.classList.contains('open'))setTimeout(()=>document.getElementById('yt-tray-input').focus(),60);
@@ -2095,8 +2097,10 @@ function doQuickJoin(){
   myUsername=username;
   document.getElementById('quick-join').classList.add('hidden');
   document.getElementById('page-room').classList.remove('hidden');
-  // Show room but with no-video until synced
+  // Show room but with no-video until synced; hide dock URL input so guest
+  // isn't asked to paste a video URL — switchTab() in room-joined restores it correctly
   document.getElementById('no-video').style.display='flex';
+  document.getElementById('dock-next').style.display='none';
   setTopCode(code);setUserBadge(username);
   initSocket();
   socket.emit('join-room',{roomCode:code,username});
@@ -2131,6 +2135,15 @@ function setRole(role){
   ['role-badge','role-badge-ink'].forEach(id=>{
     const el=document.getElementById(id);if(el)el.textContent=label;
   });
+  // v29: Guests shouldn't be prompted to load a URL — update no-video messaging
+  if(role==='guest'){
+    const nv=document.getElementById('no-video');
+    if(nv){
+      const h=nv.querySelector('h3'),p=nv.querySelector('p');
+      if(h)h.textContent='Waiting for host…';
+      if(p)p.textContent='The host will start the video. Hang tight!';
+    }
+  }
 }
 // Update members in both watch and ink panels
 function setMembers(names){
