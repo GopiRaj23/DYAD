@@ -1231,7 +1231,7 @@ button{
 
 <script>
 /* ══════ STATE ══════ */
-let socket=null, player=null, ytLoaded=false;
+let socket=null, player=null, ytLoaded=false, _pendingAutoSync=false;
 let isHost=false, isSyncing=false, roomCode=null, myUsername='', roomMode='stream';
 let guestHasInteracted=false, heartbeatInt=null;
 let currentTab='watch', timerTotal=60;
@@ -1377,8 +1377,13 @@ function ribbonWatch(){
     return;
   }
   if(roomMode==='game' && !ytLoaded){
-    // v29: Only the host gets the URL tray in game mode — guests just see the watch tab
-    if(!isHost){document.getElementById('yt-tray').classList.remove('open');switchTab('watch');return;}
+    // v29: Only the host gets the URL tray in game mode — guests just see watch tab with sync prompt
+    if(!isHost){
+      document.getElementById('yt-tray').classList.remove('open');
+      switchTab('watch');
+      if(!ytLoaded){const sp=document.getElementById('sync-prompt');if(sp)sp.classList.add('show');}
+      return;
+    }
     const tray=document.getElementById('yt-tray');
     tray.classList.toggle('open');
     if(tray.classList.contains('open'))setTimeout(()=>document.getElementById('yt-tray-input').focus(),60);
@@ -1690,7 +1695,12 @@ function playPause(){
 
 /* ══════ SYNC PLAY (#7) ══════ */
 function doSyncPlay(){
-  if(!player)return;
+  if(!player){
+    // No player yet — request host's current video state; auto-sync when it loads
+    _pendingAutoSync=true;
+    if(socket&&roomCode)socket.emit('watch-accepted');
+    return;
+  }
   const sp=document.getElementById('sync-prompt');
   if(sp)sp.classList.remove('show');
   // Estimate current host position: last known timestamp + elapsed time if host was playing
@@ -2369,7 +2379,10 @@ function initSocket(){
         setTimeout(()=>{isSyncing=false;},1500);
       }
     }else{
-      document.getElementById('no-video').style.display='flex';switchTab('watch');
+      // No video loaded yet — show sync-prompt so guest can pull host's state on tap
+      document.getElementById('no-video').style.display='none';
+      const sp=document.getElementById('sync-prompt');if(sp)sp.classList.add('show');
+      switchTab('watch');
     }
     initCanvas();initVoice();
   });
@@ -2482,7 +2495,11 @@ function initSocket(){
     if(!window.YT||!window.YT.Player)await loadYTAPI();
     await createPlayer(videoId,latestHostTimestamp);
     switchTab('watch');removePendingDot();
-    if(isPlaying){
+    if(_pendingAutoSync){
+      // Guest tapped "Sync In" before player loaded — auto-connect seamlessly now
+      _pendingAutoSync=false;
+      doSyncPlay();
+    }else if(isPlaying){
       // Show sync-prompt — user tap required due to browser autoplay policy
       const sp=document.getElementById('sync-prompt');if(sp)sp.classList.add('show');
     }else{
