@@ -2789,7 +2789,7 @@ function updateFeedbackPos(){
 function openFeedback(){document.getElementById('feedback-overlay').classList.add('show');}
 function closeFeedback(){document.getElementById('feedback-overlay').classList.remove('show');}
 document.getElementById('fb-text').addEventListener('input',function(){
-  document.getElementById('fb-count').textContent=this.value.length;
+  document.getElementById('fb-count').textContent=1000-this.value.length;
 });
 async function submitFeedback(){
   const username=document.getElementById('fb-username').value.trim();
@@ -2804,7 +2804,7 @@ async function submitFeedback(){
     if(r.ok){
       document.getElementById('fb-username').value='';
       document.getElementById('fb-text').value='';
-      document.getElementById('fb-count').textContent='0';
+      document.getElementById('fb-count').textContent='1000';
       closeFeedback();
       toast('✓ Feedback submitted — thank you!');
     }else{alert('Failed to submit. Please try again.');}
@@ -2825,7 +2825,7 @@ updateFeedbackPos();
     <h3>Beta Feedback</h3>
     <input id="fb-username" type="text" maxlength="80" placeholder="Type in your actual name">
     <textarea id="fb-text" maxlength="1000" placeholder="Please enter your feedback"></textarea>
-    <div class="fb-char"><span id="fb-count">0</span> / 1000</div>
+    <div class="fb-char"><span id="fb-count">1000</span> characters remaining</div>
     <div class="fb-row">
       <button class="fb-cancel" onclick="closeFeedback()">Cancel</button>
       <button class="fb-submit" id="fb-submit" onclick="submitFeedback()">Submit</button>

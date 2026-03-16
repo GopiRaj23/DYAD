@@ -8,13 +8,17 @@ const app    = express();
 const server = http.createServer(app);
 const io     = new Server(server);
 
-// ── PostgreSQL: beta feedback DB (Railway injects DATABASE_URL) ───────────────
+// ── PostgreSQL: beta feedback DB ─────────────────────────────────────────────
+// Railway: add reference var DATABASE_URL = ${{Postgres.DATABASE_URL}} in app service variables
+const DB_URL = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+console.log('[DB] DATABASE_URL set:', !!DB_URL);
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
+  connectionString: DB_URL,
+  ssl: DB_URL ? { rejectUnauthorized: false } : false   // Railway Postgres requires SSL
 });
 
-// Create table on startup if it doesn't exist
+// Create table on startup; log result so Railway logs show DB status clearly
 pool.query(`CREATE TABLE IF NOT EXISTS beta_feedback (
   id           SERIAL PRIMARY KEY,
   date         TEXT   NOT NULL,
@@ -22,7 +26,9 @@ pool.query(`CREATE TABLE IF NOT EXISTS beta_feedback (
   feedbacktext TEXT   NOT NULL,
   label        TEXT   NOT NULL,
   fix_status   TEXT   NOT NULL DEFAULT 'unassigned'
-)`).catch(err => console.error('DB init error:', err));
+)`)
+  .then(() => console.log('[DB] beta_feedback table ready'))
+  .catch(err => console.error('[DB] init error:', err.message));
 // ─────────────────────────────────────────────────────────────────────────────
 
 app.use(express.json());
