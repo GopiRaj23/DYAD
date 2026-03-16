@@ -1,13 +1,41 @@
-const express = require('express');
-const http    = require('http');
+const express  = require('express');
+const http     = require('http');
 const { Server } = require('socket.io');
-const path    = require('path');
+const path     = require('path');
+const Database = require('better-sqlite3');
 
 const app    = express();
 const server = http.createServer(app);
 const io     = new Server(server);
 
+// ── SQLite: beta feedback DB ──────────────────────────────────────────────────
+const db = new Database(path.join(__dirname, 'beta_feedback.db'));
+db.prepare(`CREATE TABLE IF NOT EXISTS beta_feedback (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  date         TEXT    NOT NULL,
+  username     TEXT    NOT NULL,
+  feedbacktext TEXT    NOT NULL,
+  label        TEXT    NOT NULL,
+  fix_status   TEXT    NOT NULL DEFAULT 'unassigned'
+)`).run();
+// ─────────────────────────────────────────────────────────────────────────────
+
+app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+
+// POST /api/feedback — save beta feedback entry
+app.post('/api/feedback', (req, res) => {
+  const { username, feedbacktext, label } = req.body || {};
+  if (!username || !feedbacktext || !label)
+    return res.status(400).json({ error: 'Missing fields' });
+  if (feedbacktext.length > 1000)
+    return res.status(400).json({ error: 'Feedback too long (max 1000 chars)' });
+  const date = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  db.prepare(
+    'INSERT INTO beta_feedback (date, username, feedbacktext, label, fix_status) VALUES (?, ?, ?, ?, ?)'
+  ).run(date, username.trim(), feedbacktext.trim(), label, 'unassigned');
+  res.json({ ok: true });
+});
 
 const rooms = new Map();
 
