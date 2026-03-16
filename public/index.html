@@ -2132,6 +2132,12 @@ function leaveRoom(){
   stopHeartbeat();
   if(socket){try{socket.disconnect();}catch(e){} socket=null;}
   if(peer){try{peer.destroy();}catch(e){} peer=null;}
+  // v31: Stop YouTube player audio
+  if(player){try{player.stopVideo();player.destroy();}catch(e){} player=null;ytLoaded=false;}
+  // v31: Stop microphone stream tracks and close keepAudioAlive context
+  if(localStream){localStream.getTracks().forEach(t=>t.stop());localStream=null;}
+  if(_audioCtx){try{_audioCtx.close();}catch(e){} _audioCtx=null;}
+  voiceState='idle';
   // Reset room state
   roomCode='';myUsername='';isHost=false;
   document.getElementById('page-room').classList.add('hidden');
