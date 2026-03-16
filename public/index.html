@@ -2494,6 +2494,10 @@ function initSocket(){
     if(player){try{player.destroy();}catch(e){}player=null;}
     if(!window.YT||!window.YT.Player)await loadYTAPI();
     await createPlayer(videoId,latestHostTimestamp);
+    // v30: Refresh received-time after async load — same as room-joined does.
+    // Without this, elapsed = createPlayer_load_time (5-8s) gets added to the target
+    // timestamp in doSyncPlay() when latestHostPlaying=true, causing 9-10s offset.
+    latestHostReceived=Date.now()/1000;
     switchTab('watch');removePendingDot();
     if(_pendingAutoSync){
       // Guest tapped "Sync In" before player loaded — auto-connect seamlessly now
