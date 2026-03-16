@@ -2788,9 +2788,7 @@ function updateFeedbackPos(){
 }
 function openFeedback(){document.getElementById('feedback-overlay').classList.add('show');}
 function closeFeedback(){document.getElementById('feedback-overlay').classList.remove('show');}
-document.getElementById('fb-text').addEventListener('input',function(){
-  document.getElementById('fb-count').textContent=1000-this.value.length;
-});
+// v33b: counter listener moved to inline oninput (script runs before modal HTML exists in DOM)
 async function submitFeedback(){
   const username=document.getElementById('fb-username').value.trim();
   const feedbacktext=document.getElementById('fb-text').value.trim();
@@ -2824,7 +2822,7 @@ updateFeedbackPos();
   <div id="feedback-modal">
     <h3>Beta Feedback</h3>
     <input id="fb-username" type="text" maxlength="80" placeholder="Type in your actual name">
-    <textarea id="fb-text" maxlength="1000" placeholder="Please enter your feedback"></textarea>
+    <textarea id="fb-text" maxlength="1000" placeholder="Please enter your feedback" oninput="document.getElementById('fb-count').textContent=1000-this.value.length"></textarea>
     <div class="fb-char"><span id="fb-count">1000</span> characters remaining</div>
     <div class="fb-row">
       <button class="fb-cancel" onclick="closeFeedback()">Cancel</button>
