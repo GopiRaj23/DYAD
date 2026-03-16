@@ -981,8 +981,8 @@ button{
             </div>
             <!-- #7 Sync prompt for guests joining a live video -->
             <div class="sync-prompt" id="sync-prompt">
-              <div class="sync-prompt-label">Video is live — tap to join in sync</div>
-              <button class="sync-play-btn" onclick="doSyncPlay()">▶ Play in Sync</button>
+              <div class="sync-prompt-label">Tap to sync with host</div>
+              <button class="sync-play-btn" onclick="doSyncPlay()">▶ Sync In</button>
             </div>
           </div>
         </div>
@@ -1698,11 +1698,16 @@ function doSyncPlay(){
   const target=Math.max(0,latestHostTimestamp+elapsed);
   isSyncing=true;
   player.seekTo(target,true);
-  player.playVideo(); // safe: this IS a user gesture (button click)
-  
+  // v29: match host play state — play if host is playing, stay paused if host is paused
+  if(latestHostPlaying){
+    player.playVideo(); // safe: this IS a user gesture (button click)
+    toast('✓ Playing in sync with host!');
+  }else{
+    player.pauseVideo();
+    toast('✓ Synced to host position!');
+  }
   guestHasInteracted=true; // unlock heartbeat-driven sync for future drift corrections
   setTimeout(()=>{isSyncing=false;},500);
-  toast('✓ Playing in sync with host!');
 }
 let latestHostReceived=Date.now()/1000; // timestamp when we last got a heartbeat
 async function loadNextVideo(){
@@ -2350,16 +2355,15 @@ function initSocket(){
       // Refresh received-time after async load — keeps elapsed estimate in doSyncPlay accurate
       latestHostReceived=Date.now()/1000;
       switchTab('watch');
-      if(isPlaying){
-        // Show tap-to-play prompt — this is a user gesture so playVideo() will succeed
-        const sp=document.getElementById('sync-prompt');
-        if(sp)sp.classList.add('show');
-      }else{
-        // v22 Fix #4: Host is paused — explicitly force-pause after creation.
+      // v29 update: always show sync-prompt so guest can tap to connect regardless of
+      // whether host is playing or paused — replaces the "Waiting for host" no-video state.
+      const sp=document.getElementById('sync-prompt');
+      if(sp)sp.classList.add('show');
+      if(!isPlaying){
+        // CRITICAL SAFEGUARD v22 Fix #4: Host is paused — force-pause the local player.
         // YouTube iframe can auto-play briefly despite autoplay:0; this kills it immediately.
         isSyncing=true;
         try{player.pauseVideo();}catch(e){}
-        // Also re-pause after a short delay to catch any deferred auto-play from YouTube
         setTimeout(()=>{try{player.pauseVideo();}catch(e){}},300);
         setTimeout(()=>{try{player.pauseVideo();}catch(e){}},800);
         setTimeout(()=>{isSyncing=false;},1500);
