@@ -1628,9 +1628,11 @@ function createPlayer(videoId,startTime){
     });
   });
 }
+let _lastEmittedPauseAt=-1; // v28: track last emitted pause position to detect seek-while-paused
 function onPlayerState(ev){
   if(isSyncing)return;
   if(ev.data===YT.PlayerState.PLAYING){
+    _lastEmittedPauseAt=-1; // no longer paused
     guestHasInteracted=true;
     if(socket&&roomCode){
       const t=player.getCurrentTime();
@@ -1642,11 +1644,29 @@ function onPlayerState(ev){
   }else if(ev.data===YT.PlayerState.PAUSED){
     if(socket&&roomCode){
       const t=player.getCurrentTime();
+      _lastEmittedPauseAt=t; // CRITICAL SAFEGUARD: record paused position for seek detection
       socket.emit('sync-event',{type:'pause',timestamp:t,sentAt:Date.now()});
       lastLocalSyncAt=Date.now(); // protect from heartbeat snap-back
     }
     // v22 Fix #9: show persistent pause banner for local user
     showPauseBanner(myUsername);
+  }else if(ev.data===3/*BUFFERING*/){
+    // v28: Seek-while-paused fix — YT fires BUFFERING on seek but may not re-fire PAUSED.
+    // Without this, room.timestamp stays at T1 and heartbeat snaps guest back after 3.5s.
+    // CRITICAL SAFEGUARD: only act if we were previously paused (lastEmittedPauseAt >= 0)
+    if(_lastEmittedPauseAt>=0){
+      setTimeout(()=>{
+        if(!player||isSyncing)return;
+        if(player.getPlayerState()===2/*PAUSED*/){
+          const t=player.getCurrentTime();
+          if(Math.abs(t-_lastEmittedPauseAt)>0.5&&socket&&roomCode){
+            _lastEmittedPauseAt=t;
+            socket.emit('sync-event',{type:'pause',timestamp:t,sentAt:Date.now()});
+            lastLocalSyncAt=Date.now();
+          }
+        }
+      },600); // wait for buffer to settle at new seek position
+    }
   }
 }
 function extractVid(url){const m=(url||'').match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/);return m?m[1]:null;}
