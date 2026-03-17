@@ -842,9 +842,8 @@ button{
 /* ── v32: FEEDBACK BUTTON & MODAL ───────────────────────────────────────── */
 #feedback-btn{position:fixed;z-index:9000;background:var(--surface2);border:1px solid var(--border-hi);color:var(--text-dim);font-size:.62rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;border-radius:var(--r-sm);padding:.42rem .9rem;cursor:pointer;transition:all .2s;opacity:.7;}
 #feedback-btn:hover{opacity:1;background:var(--teal);color:var(--text);}
-/* v36d: always bottom-right on every page — above dock in room, standard gap on landing.
-   --dock-h is 68px globally (0 effective on landing page since no dock is rendered). */
-#feedback-btn{right:calc(1.1rem + env(safe-area-inset-right,0px));bottom:calc(var(--dock-h) + env(safe-area-inset-bottom,0px) + 0.5rem);}
+/* v36e: always bottom-right — in room must clear dock + chat-input-row (~3.2rem); landing has no dock */
+#feedback-btn{right:calc(1.1rem + env(safe-area-inset-right,0px));bottom:calc(var(--dock-h) + 3.2rem + env(safe-area-inset-bottom,0px));}
 #feedback-btn.pos-landing{bottom:calc(1.4rem + env(safe-area-inset-bottom,0px));}
 #feedback-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.62);z-index:9100;align-items:center;justify-content:center;}
 #feedback-overlay.show{display:flex;}
