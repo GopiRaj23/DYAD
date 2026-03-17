@@ -228,7 +228,7 @@ button{
 }
 .ribbon-btn.active{color:var(--gold);background:rgba(225,193,121,.05);border-bottom:2px solid var(--gold);}
 .ribbon-btn:hover:not(.active){color:var(--text);background:rgba(255,255,255,.03);}
-.yt-tray{flex:1;display:none;align-items:center;gap:.45rem;padding:0 .7rem;overflow:hidden;}
+.yt-tray{flex:0 0 auto;margin-left:auto;display:none;align-items:center;gap:.45rem;padding:0 .7rem;}
 .yt-tray.open{display:flex;}
 .yt-tray input{flex:1;margin-bottom:0;padding:.38rem .65rem;font-size:.76rem;height:30px;}
 .yt-load{background:linear-gradient(135deg,var(--gold),var(--gold-deep));color:var(--bg-deep);font-size:.64rem;font-weight:700;border-radius:var(--r-xs);padding:.38rem .8rem;white-space:nowrap;flex-shrink:0;}
@@ -997,14 +997,15 @@ button{
   <!-- RIBBON -->
   <div class="mode-ribbon">
     <button class="ribbon-btn" id="rb-watch" onclick="ribbonWatch()">📺 Watch</button>
-    <div class="yt-tray" id="yt-tray">
-      <input type="text" id="yt-tray-input" placeholder="Paste YouTube URL…" autocomplete="off"/>
-      <button class="yt-load" onclick="loadFromTray()">▶ Load</button>
-    </div>
     <div style="width:1px;height:22px;background:var(--border);flex-shrink:0;"></div>
     <button class="ribbon-btn" id="rb-ink" onclick="ribbonInkMind()">🎨 InkMind</button>
     <!-- Mobile chat button -->
     <button class="ribbon-chat-btn" id="rb-chat" onclick="toggleMobileChat()">💬 Chat</button>
+    <!-- v37: URL tray moved to right corner of ribbon -->
+    <div class="yt-tray" id="yt-tray">
+      <input type="text" id="yt-tray-input" placeholder="Paste YouTube URL…" autocomplete="off"/>
+      <button class="yt-load" onclick="loadFromTray()">▶ Load</button>
+    </div>
   </div>
 
   <!-- ROOM BODY -->
