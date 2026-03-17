@@ -114,6 +114,8 @@ button{
 .qj-btn:hover{transform:translateY(-1px);}
 .qj-err{display:none;font-size:.72rem;color:var(--red);margin-top:.5rem;}
 .qj-err.show{display:block;}
+.qj-home-btn{background:transparent;border:none;color:var(--text-dim);font-size:.72rem;cursor:pointer;margin-top:.4rem;padding:.3rem .6rem;border-radius:var(--r-sm);transition:color .2s;}
+.qj-home-btn:hover{color:var(--text);}
 
 /* ══ TOASTS ══ */
 .toast-container{position:fixed;top:calc(var(--topbar-h) + 6px);left:50%;transform:translateX(-50%);z-index:1000;display:flex;flex-direction:column;align-items:center;gap:.35rem;pointer-events:none;}
@@ -646,7 +648,8 @@ button{
    InkMind:  room-left = JS-set (56% room-body)     | room-right = chat fills rest
    Chat is ALWAYS visible — no overlay, no toggle button.
    ════════════════════════════════════════════════════════ */
-@media (max-width:639px) and (orientation:portrait){
+/* v36c: max-aspect-ratio:1/1 = width≤height (pure dimension portrait, no sensor dependency) */
+@media (max-width:767px) and (max-aspect-ratio:1/1){
   :root{--topbar-h:48px;--ribbon-h:40px;--dock-h:52px;}
 
   /* ── Vertical stack ── */
@@ -701,9 +704,14 @@ button{
   /* ── Dock: essentials only ── */
   .dock-inner{justify-content:flex-start;gap:.28rem;padding:0;}
   .dock-left-group{gap:.3rem;}
-  .vol-wrap{display:none;}
-  .mic-state-txt{display:none;}
+  /* v36c: show muted-state text and volume slider compact — don't hide them */
+  .vol-wrap{display:flex;flex-direction:column;gap:1px;}
+  .vol-slider{width:44px;}
+  .mic-state-txt{display:block;font-size:.46rem;max-width:38px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .voice-wave{display:none;}
+  /* v36b: ensure mic-btn stays visible — never compressed or clipped by overflow:hidden */
+  .dock-voice{flex-shrink:0;overflow:visible;}
+  .mic-btn{flex-shrink:0;}
   .dock-next{display:none;}
   /* Hide inline emoji-btns; show expand-btn instead → full panel on tap */
   .dock-emojis .emoji-btn{display:none;}
@@ -728,7 +736,8 @@ button{
    Layout: identical to desktop side-by-side.
    Narrower chat panel, smaller controls.
    ════════════════════════════════════════════════════════ */
-@media (max-height:520px) and (orientation:landscape){
+/* v36c: min-aspect-ratio:1/1 = width≥height (pure dimension landscape, no sensor dependency) */
+@media (max-height:599px) and (min-aspect-ratio:1/1){
   :root{--topbar-h:40px;--ribbon-h:34px;--dock-h:44px;--chat-w:230px;}
 
   /* v25: prevent any element from exceeding viewport */
@@ -772,9 +781,14 @@ button{
   /* ── Dock ── */
   .dock{overflow:hidden;}
   .dock-inner{gap:.22rem;padding:0;overflow:hidden;}
-  .vol-wrap{display:none;}
-  .mic-state-txt{display:none;}
+  /* v36c: compact vol-wrap and mic-state-txt in landscape too */
+  .vol-wrap{display:flex;flex-direction:column;gap:1px;}
+  .vol-slider{width:40px;}
+  .mic-state-txt{display:block;font-size:.44rem;max-width:34px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .voice-wave{display:none;}
+  /* v36b: ensure mic-btn stays visible in landscape too */
+  .dock-voice{flex-shrink:0;overflow:visible;}
+  .mic-btn{flex-shrink:0;}
   .dock-next{display:none;}
   /* Same as portrait: hide inline emoji-btns, show expand-btn for full panel */
   .dock-emojis .emoji-btn{display:none;}
@@ -828,8 +842,8 @@ button{
 /* ── v32: FEEDBACK BUTTON & MODAL ───────────────────────────────────────── */
 #feedback-btn{position:fixed;z-index:9000;background:var(--surface2);border:1px solid var(--border-hi);color:var(--text-dim);font-size:.62rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;border-radius:var(--r-sm);padding:.42rem .9rem;cursor:pointer;transition:all .2s;opacity:.7;}
 #feedback-btn:hover{opacity:1;background:var(--teal);color:var(--text);}
-#feedback-btn.pos-center{left:50%;bottom:1.2rem;transform:translateX(-50%);}
-#feedback-btn.pos-corner{right:1.1rem;bottom:1.2rem;}
+/* v36f: absolute bottom-right corner — sits in dock strip's far-right empty space, no overlap */
+#feedback-btn{right:calc(0.6rem + env(safe-area-inset-right,0px));bottom:calc(0.4rem + env(safe-area-inset-bottom,0px));}
 #feedback-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.62);z-index:9100;align-items:center;justify-content:center;}
 #feedback-overlay.show{display:flex;}
 #feedback-modal{background:var(--surface);border:1px solid var(--border-hi);border-radius:var(--r);padding:1.4rem 1.6rem;width:min(92vw,400px);display:flex;flex-direction:column;gap:.9rem;}
@@ -858,6 +872,7 @@ button{
     </div>
     <button class="qj-btn" onclick="doQuickJoin()">Join Now →</button>
     <div class="qj-err" id="qj-err"></div>
+    <button class="qj-home-btn" onclick="goHome()">← Home</button>
   </div>
 </div>
 
@@ -1258,7 +1273,16 @@ button{
 <script>
 /* ══════ STATE ══════ */
 let socket=null, player=null, ytLoaded=false, _pendingAutoSync=false;
-let isHost=false, isSyncing=false, roomCode=null, myUsername='', roomMode='stream';
+// v36: isSyncing replaced with a depth counter so overlapping setTimeout clears
+// don't prematurely unlock — each caller increments on set and decrements on clear.
+// CRITICAL SAFEGUARD: all existing isSyncing=true/false call sites work unchanged.
+let _syncDepth=0;
+Object.defineProperty(window,'isSyncing',{
+  get:()=>_syncDepth>0,
+  set:(v)=>{if(v){_syncDepth++;}else{_syncDepth=Math.max(0,_syncDepth-1);}}
+});
+let isHost=false, roomCode=null, myUsername='', roomMode='stream';
+let _watchdogInt=null, _ppCycles=0; // v36b: blackscreen watchdog
 let guestHasInteracted=false, heartbeatInt=null;
 let currentTab='watch', timerTotal=60;
 let gameRounds=1, participantCount=1;
@@ -1645,9 +1669,13 @@ function createPlayer(videoId,startTime){
           setTimeout(pinIframeGPULayer,200);
           // Release isSyncing after a short settle — YT iframe fires state events during init
           setTimeout(()=>{isSyncing=false;},1200);
+          // v36b: start periodic black-screen watchdog for all users
+          startWatchdog();
           res();
         },
-        onStateChange:onPlayerState
+        onStateChange:onPlayerState,
+        // v36: recover GPU-layer black-screen on YT API errors (e.g. state -1 after rapid pause/play)
+        onError:(ev)=>{console.warn('YT player error',ev.data);setTimeout(forceRepaint,200);}
       }
     });
   });
@@ -1676,6 +1704,8 @@ function onPlayerState(ev){
   if(ev.data===YT.PlayerState.PLAYING){
     _lastEmittedPauseAt=-1;_stopPausePoll(); // no longer paused
     guestHasInteracted=true;
+    // v36: nudge AudioContext awake — YT acquiring media focus can suspend WebRTC AudioContext
+    if(_audioCtx&&_audioCtx.state==='suspended')_audioCtx.resume().catch(()=>{});
     if(socket&&roomCode){
       const t=player.getCurrentTime();
       socket.emit('sync-event',{type:'play',timestamp:t,sentAt:Date.now()});
@@ -1698,9 +1728,31 @@ function onPlayerState(ev){
 function extractVid(url){const m=(url||'').match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/);return m?m[1]:null;}
 function startHeartbeat(){if(!isHost||heartbeatInt)return;heartbeatInt=setInterval(()=>{if(!player||!socket)return;socket.emit('heartbeat',{timestamp:player.getCurrentTime(),isPlaying:player.getPlayerState()===YT.PlayerState.PLAYING});},1000);}
 function stopHeartbeat(){if(heartbeatInt){clearInterval(heartbeatInt);heartbeatInt=null;}}
+// v36b: Periodic black-screen watchdog — fires every 8s while video is loaded.
+// Calls forceRepaint() preventively. If player has reset (state=-1), self-heals by
+// seeking to last known position and matching play/pause state. Non-disruptive to others.
+function startWatchdog(){
+  if(_watchdogInt)return;
+  _watchdogInt=setInterval(()=>{
+    if(!player||!ytLoaded)return;
+    forceRepaint(); // preventive GPU layer refresh — zero playback impact
+    if(player.getPlayerState()===-1&&!isSyncing){ // player reset after error — self-heal
+      isSyncing=true;
+      const target=isHost?player.getCurrentTime():Math.max(0,latestHostTimestamp);
+      try{player.seekTo(target,true);}catch(e){}
+      if(!isHost&&latestHostPlaying){try{player.playVideo();}catch(e){}}
+      else if(!isHost){try{player.pauseVideo();}catch(e){}}
+      setTimeout(()=>{isSyncing=false;},1000);
+      flashSync();
+    }
+  },8000);
+}
+function stopWatchdog(){if(_watchdogInt){clearInterval(_watchdogInt);_watchdogInt=null;}}
 function playPause(){
   if(!player)return;
-  const playing=player.getPlayerState()===YT.PlayerState.PLAYING;
+  // v36: treat BUFFERING (3) as playing — on mobile, first pause tap while buffering was ignored
+  const s=player.getPlayerState();
+  const playing=s===YT.PlayerState.PLAYING||s===YT.PlayerState.BUFFERING;
   const t=player.getCurrentTime();
   if(socket&&roomCode){socket.emit('sync-event',{type:playing?'pause':'play',timestamp:t,sentAt:Date.now()});}
   lastLocalSyncAt=Date.now(); // protect from heartbeat snap-back
@@ -1708,6 +1760,8 @@ function playPause(){
   if(playing){player.pauseVideo();}
   else{player.playVideo();setTimeout(forceRepaint,100);setTimeout(forceRepaint,400);}
   setTimeout(()=>{isSyncing=false;},800);
+  // v36b: extra repaint every 3 pause/play cycles to combat GPU layer staling
+  if(++_ppCycles%3===0)setTimeout(forceRepaint,600);
 }
 
 /* ══════ SYNC PLAY (#7) ══════ */
@@ -1820,6 +1874,10 @@ function keepAudioAlive(stream){
     const gain=_audioCtx.createGain();gain.gain.value=0; // silent — we don't want echo
     src.connect(gain);gain.connect(_audioCtx.destination);
     if(_audioCtx.state==='suspended')_audioCtx.resume().catch(()=>{});
+    // v36: auto-resume whenever the OS suspends the AudioContext (e.g. YT acquires audio focus)
+    _audioCtx.addEventListener('statechange',()=>{
+      if(_audioCtx&&_audioCtx.state==='suspended')_audioCtx.resume().catch(()=>{});
+    });
   }catch(e){console.warn('AudioContext keep-alive failed:',e);}
 }
 
@@ -2119,6 +2177,8 @@ function joinGameRoom(){
   if(code.length<4){showErr('err-join-game','Enter the 6-character room code.');return;}
   myUsername=username;clearErr('err-join-game');initSocket();socket.emit('join-room',{roomCode:code,username});
 }
+// v36: return to landing page — strips ?room= param
+function goHome(){window.location.href=window.location.origin;}
 function doQuickJoin(){
   const params=new URLSearchParams(window.location.search);
   const code=(params.get('room')||'').trim().toUpperCase();
@@ -2148,6 +2208,7 @@ function showRoom(){
 // v27: Exit room — disconnect and return to landing
 function leaveRoom(){
   stopHeartbeat();
+  stopWatchdog(); // v36b: stop blackscreen watchdog on exit
   if(socket){try{socket.disconnect();}catch(e){} socket=null;}
   if(peer){try{peer.destroy();}catch(e){} peer=null;}
   // v31: Stop YouTube player audio
@@ -2300,7 +2361,8 @@ function clearPauseBanner(){
    to whatever space remains. Works identically for both Watch and InkMind tabs. */
 function applyKeyboardLayout(){
   if(!window.visualViewport)return;
-  const portrait=window.innerWidth<640&&window.innerHeight>window.innerWidth;
+  // v36b: pure dimension comparison — portrait when width<height, cap at 768 to exclude tablets
+  const portrait=window.innerWidth<window.innerHeight&&window.innerWidth<768;
   const rr=document.getElementById('room-right');
   const rl=document.getElementById('room-left');
   if(!rr||!rl)return;
@@ -2491,7 +2553,8 @@ function initSocket(){
     // v22 Fix #1: Skip corrections if WE recently emitted a sync-event (seek/play/pause).
     // The heartbeat may carry a stale host position that hasn't settled to our seek target yet.
     if(Date.now()-lastLocalSyncAt<3500)return;
-    if(Math.abs(player.getCurrentTime()-timestamp)>0.5){isSyncing=true;player.seekTo(timestamp,true);flashSync();setTimeout(()=>{isSyncing=false;},400);}
+    // v36: raised from 0.5s→1.5s — reduces micro-corrections on mobile with buffering delays
+    if(Math.abs(player.getCurrentTime()-timestamp)>1.5){isSyncing=true;player.seekTo(timestamp,true);flashSync();setTimeout(()=>{isSyncing=false;},400);}
     const myPlay=player.getPlayerState()===YT.PlayerState.PLAYING;
     if(isPlaying&&!myPlay&&guestHasInteracted){isSyncing=true;player.playVideo();setTimeout(forceRepaint,100);setTimeout(()=>{isSyncing=false;},400);}
     else if(!isPlaying&&myPlay){isSyncing=true;player.pauseVideo();setTimeout(()=>{isSyncing=false;},400);}
@@ -2792,10 +2855,7 @@ function getFeedbackLabel(){
   return currentTab==='ink'?'inkmind':'cowatch';
 }
 function updateFeedbackPos(){
-  const btn=document.getElementById('feedback-btn');if(!btn)return;
-  const onLanding=!document.getElementById('page-landing').classList.contains('hidden');
-  btn.classList.toggle('pos-center',onLanding);
-  btn.classList.toggle('pos-corner',!onLanding);
+  // v36f: single fixed position — no toggling needed
 }
 function openFeedback(){document.getElementById('feedback-overlay').classList.add('show');}
 function closeFeedback(){document.getElementById('feedback-overlay').classList.remove('show');}
@@ -2826,7 +2886,7 @@ updateFeedbackPos();
 </script>
 
 <!-- v32: Feedback button (repositioned via updateFeedbackPos) -->
-<button id="feedback-btn" class="pos-center" onclick="openFeedback()">💬 Feedback</button>
+<button id="feedback-btn" onclick="openFeedback()">💬 Feedback</button>
 
 <!-- v32: Feedback modal -->
 <div id="feedback-overlay" onclick="if(event.target===this)closeFeedback()">
