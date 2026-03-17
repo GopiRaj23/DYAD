@@ -395,8 +395,8 @@ button{
 .ov-btn:hover{transform:translateY(-2px);}
 .ov-btn.sec{background:transparent;border:1px solid var(--border-hi);color:var(--text-dim);box-shadow:none;}
 .ov-btn.sec:hover{color:var(--text);}
-.word-choices-grid{display:grid;grid-template-columns:1fr 1fr;gap:.55rem;width:100%;max-width:320px;}
-.word-choice-btn{background:var(--surface2);border:1px solid var(--border-hi);color:var(--text);font-family:var(--font-brand);font-size:clamp(1rem,3vw,1.15rem);font-weight:600;letter-spacing:.07em;border-radius:var(--r-sm);padding:.66rem .4rem;cursor:pointer;transition:all .18s;}
+.word-choices-grid{display:grid;grid-template-columns:1fr 1fr;gap:.55rem;width:100%;max-width:min(100%,280px);}
+.word-choice-btn{background:var(--surface2);border:1px solid var(--border-hi);color:var(--text);font-family:var(--font-brand);font-size:clamp(.78rem,3vw,1.15rem);font-weight:600;letter-spacing:.07em;border-radius:var(--r-sm);padding:.52rem .3rem;cursor:pointer;transition:all .18s;}
 .word-choice-btn:hover{background:linear-gradient(135deg,var(--gold),var(--gold-deep));color:var(--bg-deep);border-color:var(--gold);transform:scale(1.04);}
 .choice-countdown{font-family:var(--font-brand);font-size:2.8rem;font-weight:700;color:var(--gold-pale);line-height:1;}
 .choice-countdown.urgent{color:var(--red);}
@@ -677,6 +677,10 @@ button{
   .game-info-bar{flex-shrink:0;flex-wrap:nowrap;gap:.2rem;padding:.06rem 0;min-height:0;}
   .game-status{font-size:.58rem;}
   #word-area{font-size:clamp(.82rem,3.8vw,1.05rem);}
+  /* v34: word picker must fit inside canvas on all phone sizes */
+  .word-choices-grid{max-width:min(92%,240px);gap:.35rem;}
+  .word-choice-btn{font-size:clamp(.68rem,3.5vw,.88rem);padding:.44rem .22rem;}
+  .choice-countdown{font-size:2rem;}
   .live-score-bar{gap:.14rem;flex-shrink:0;}
   .score-pill{font-size:.5rem;padding:.06rem .28rem;}
   .canvas-toolbar{
@@ -1451,8 +1455,8 @@ function adjustMobileLayout(tab){
   if(!rl)return;
   if(portrait){
     if(tab==='ink'){
-      // v26: use viewport width to derive height — same as video's aspect-ratio:16/9
-      const targetH=Math.round(window.innerWidth*9/16);
+      // v34: 60% of viewport height for ink canvas in portrait — more room for canvas
+      const targetH=Math.round(window.innerHeight*0.60);
       rl.style.flex='0 0 '+targetH+'px';
     }else{
       rl.style.flex='';  // auto — video aspect-ratio sizes it
@@ -2333,7 +2337,8 @@ function esc(s){const d=document.createElement('div');d.textContent=s;return d.i
 /* ══════ SOCKET ══════ */
 function initSocket(){
   if(socket)return;
-  socket=io();
+  // v34: start with polling so mobile networks (carrier NAT) can connect, then upgrade to WS
+  socket=io({transports:['polling','websocket'],upgrade:true});
 
   socket.on('room-created',async({roomCode:code,videoId,mode,participants})=>{
     roomCode=code;isHost=true;roomMode=mode||'stream';participantCount=1;
@@ -2570,6 +2575,17 @@ function initSocket(){
     document.getElementById(ch==='watch'?'watch-msgs':'ink-msgs').scrollTop=9999;
   });
   socket.on('host-disconnected',()=>{stopHeartbeat();sysChat('watch','Host left — session ended');alert('The host disconnected.');});
+  // v34: handle unexpected socket drop (mobile idle/background) — show reload prompt instead of frozen screen
+  socket.on('disconnect',(reason)=>{
+    if(reason==='io client disconnect')return; // intentional (leaveRoom) — ignore
+    const overlay=document.createElement('div');
+    overlay.id='reconnect-overlay';
+    overlay.style.cssText='position:fixed;inset:0;background:rgba(8,15,16,.92);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;';
+    overlay.innerHTML='<p style="font-family:var(--font-brand);font-size:1.1rem;color:var(--gold);">Connection lost</p>'
+      +'<p style="font-size:.78rem;color:var(--text-dim);text-align:center;max-width:260px;">Your session timed out. Rejoin using the room link.</p>'
+      +'<button onclick="location.reload()" style="background:var(--gold);color:var(--bg-deep);border:none;border-radius:var(--r-sm);padding:.7rem 1.8rem;font-size:.76rem;font-weight:700;cursor:pointer;">Reload & Rejoin</button>';
+    document.body.appendChild(overlay);
+  });
   // FIX 2: host migration — promote self or update UI when host changes
   socket.on('host-migrated',({newHostId,newHostName,participants})=>{
     if(participants)setMembers(participants);
