@@ -648,7 +648,8 @@ button{
    InkMind:  room-left = JS-set (56% room-body)     | room-right = chat fills rest
    Chat is ALWAYS visible — no overlay, no toggle button.
    ════════════════════════════════════════════════════════ */
-@media (max-width:639px) and (orientation:portrait){
+/* v36b: expanded to 767px — covers all phone sizes; orientation:portrait = width<height */
+@media (max-width:767px) and (orientation:portrait){
   :root{--topbar-h:48px;--ribbon-h:40px;--dock-h:52px;}
 
   /* ── Vertical stack ── */
@@ -706,6 +707,9 @@ button{
   .vol-wrap{display:none;}
   .mic-state-txt{display:none;}
   .voice-wave{display:none;}
+  /* v36b: ensure mic-btn stays visible — never compressed or clipped by overflow:hidden */
+  .dock-voice{flex-shrink:0;overflow:visible;}
+  .mic-btn{flex-shrink:0;}
   .dock-next{display:none;}
   /* Hide inline emoji-btns; show expand-btn instead → full panel on tap */
   .dock-emojis .emoji-btn{display:none;}
@@ -730,7 +734,8 @@ button{
    Layout: identical to desktop side-by-side.
    Narrower chat panel, smaller controls.
    ════════════════════════════════════════════════════════ */
-@media (max-height:520px) and (orientation:landscape){
+/* v36b: expanded to 599px — covers taller phone landscapes; orientation:landscape = width>height */
+@media (max-height:599px) and (orientation:landscape){
   :root{--topbar-h:40px;--ribbon-h:34px;--dock-h:44px;--chat-w:230px;}
 
   /* v25: prevent any element from exceeding viewport */
@@ -777,6 +782,9 @@ button{
   .vol-wrap{display:none;}
   .mic-state-txt{display:none;}
   .voice-wave{display:none;}
+  /* v36b: ensure mic-btn stays visible in landscape too */
+  .dock-voice{flex-shrink:0;overflow:visible;}
+  .mic-btn{flex-shrink:0;}
   .dock-next{display:none;}
   /* Same as portrait: hide inline emoji-btns, show expand-btn for full panel */
   .dock-emojis .emoji-btn{display:none;}
@@ -831,7 +839,8 @@ button{
 #feedback-btn{position:fixed;z-index:9000;background:var(--surface2);border:1px solid var(--border-hi);color:var(--text-dim);font-size:.62rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;border-radius:var(--r-sm);padding:.42rem .9rem;cursor:pointer;transition:all .2s;opacity:.7;}
 #feedback-btn:hover{opacity:1;background:var(--teal);color:var(--text);}
 #feedback-btn.pos-center{left:50%;bottom:1.2rem;transform:translateX(-50%);}
-#feedback-btn.pos-corner{right:1.1rem;bottom:1.2rem;}
+/* v36b: sit above the dock + iPhone home-indicator safe area */
+#feedback-btn.pos-corner{right:calc(1.1rem + env(safe-area-inset-right,0px));bottom:calc(var(--dock-h) + env(safe-area-inset-bottom,0px) + 0.5rem);}
 #feedback-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.62);z-index:9100;align-items:center;justify-content:center;}
 #feedback-overlay.show{display:flex;}
 #feedback-modal{background:var(--surface);border:1px solid var(--border-hi);border-radius:var(--r);padding:1.4rem 1.6rem;width:min(92vw,400px);display:flex;flex-direction:column;gap:.9rem;}
@@ -1270,6 +1279,7 @@ Object.defineProperty(window,'isSyncing',{
   set:(v)=>{if(v){_syncDepth++;}else{_syncDepth=Math.max(0,_syncDepth-1);}}
 });
 let isHost=false, roomCode=null, myUsername='', roomMode='stream';
+let _watchdogInt=null, _ppCycles=0; // v36b: blackscreen watchdog
 let guestHasInteracted=false, heartbeatInt=null;
 let currentTab='watch', timerTotal=60;
 let gameRounds=1, participantCount=1;
@@ -1656,6 +1666,8 @@ function createPlayer(videoId,startTime){
           setTimeout(pinIframeGPULayer,200);
           // Release isSyncing after a short settle — YT iframe fires state events during init
           setTimeout(()=>{isSyncing=false;},1200);
+          // v36b: start periodic black-screen watchdog for all users
+          startWatchdog();
           res();
         },
         onStateChange:onPlayerState,
@@ -1713,6 +1725,26 @@ function onPlayerState(ev){
 function extractVid(url){const m=(url||'').match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/);return m?m[1]:null;}
 function startHeartbeat(){if(!isHost||heartbeatInt)return;heartbeatInt=setInterval(()=>{if(!player||!socket)return;socket.emit('heartbeat',{timestamp:player.getCurrentTime(),isPlaying:player.getPlayerState()===YT.PlayerState.PLAYING});},1000);}
 function stopHeartbeat(){if(heartbeatInt){clearInterval(heartbeatInt);heartbeatInt=null;}}
+// v36b: Periodic black-screen watchdog — fires every 8s while video is loaded.
+// Calls forceRepaint() preventively. If player has reset (state=-1), self-heals by
+// seeking to last known position and matching play/pause state. Non-disruptive to others.
+function startWatchdog(){
+  if(_watchdogInt)return;
+  _watchdogInt=setInterval(()=>{
+    if(!player||!ytLoaded)return;
+    forceRepaint(); // preventive GPU layer refresh — zero playback impact
+    if(player.getPlayerState()===-1&&!isSyncing){ // player reset after error — self-heal
+      isSyncing=true;
+      const target=isHost?player.getCurrentTime():Math.max(0,latestHostTimestamp);
+      try{player.seekTo(target,true);}catch(e){}
+      if(!isHost&&latestHostPlaying){try{player.playVideo();}catch(e){}}
+      else if(!isHost){try{player.pauseVideo();}catch(e){}}
+      setTimeout(()=>{isSyncing=false;},1000);
+      flashSync();
+    }
+  },8000);
+}
+function stopWatchdog(){if(_watchdogInt){clearInterval(_watchdogInt);_watchdogInt=null;}}
 function playPause(){
   if(!player)return;
   // v36: treat BUFFERING (3) as playing — on mobile, first pause tap while buffering was ignored
@@ -1725,6 +1757,8 @@ function playPause(){
   if(playing){player.pauseVideo();}
   else{player.playVideo();setTimeout(forceRepaint,100);setTimeout(forceRepaint,400);}
   setTimeout(()=>{isSyncing=false;},800);
+  // v36b: extra repaint every 3 pause/play cycles to combat GPU layer staling
+  if(++_ppCycles%3===0)setTimeout(forceRepaint,600);
 }
 
 /* ══════ SYNC PLAY (#7) ══════ */
@@ -2171,6 +2205,7 @@ function showRoom(){
 // v27: Exit room — disconnect and return to landing
 function leaveRoom(){
   stopHeartbeat();
+  stopWatchdog(); // v36b: stop blackscreen watchdog on exit
   if(socket){try{socket.disconnect();}catch(e){} socket=null;}
   if(peer){try{peer.destroy();}catch(e){} peer=null;}
   // v31: Stop YouTube player audio
@@ -2323,7 +2358,8 @@ function clearPauseBanner(){
    to whatever space remains. Works identically for both Watch and InkMind tabs. */
 function applyKeyboardLayout(){
   if(!window.visualViewport)return;
-  const portrait=window.innerWidth<640&&window.innerHeight>window.innerWidth;
+  // v36b: pure dimension comparison — portrait when width<height, cap at 768 to exclude tablets
+  const portrait=window.innerWidth<window.innerHeight&&window.innerWidth<768;
   const rr=document.getElementById('room-right');
   const rl=document.getElementById('room-left');
   if(!rr||!rl)return;
