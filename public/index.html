@@ -648,8 +648,8 @@ button{
    InkMind:  room-left = JS-set (56% room-body)     | room-right = chat fills rest
    Chat is ALWAYS visible — no overlay, no toggle button.
    ════════════════════════════════════════════════════════ */
-/* v36b: expanded to 767px — covers all phone sizes; orientation:portrait = width<height */
-@media (max-width:767px) and (orientation:portrait){
+/* v36c: max-aspect-ratio:1/1 = width≤height (pure dimension portrait, no sensor dependency) */
+@media (max-width:767px) and (max-aspect-ratio:1/1){
   :root{--topbar-h:48px;--ribbon-h:40px;--dock-h:52px;}
 
   /* ── Vertical stack ── */
@@ -704,8 +704,10 @@ button{
   /* ── Dock: essentials only ── */
   .dock-inner{justify-content:flex-start;gap:.28rem;padding:0;}
   .dock-left-group{gap:.3rem;}
-  .vol-wrap{display:none;}
-  .mic-state-txt{display:none;}
+  /* v36c: show muted-state text and volume slider compact — don't hide them */
+  .vol-wrap{display:flex;flex-direction:column;gap:1px;}
+  .vol-slider{width:44px;}
+  .mic-state-txt{display:block;font-size:.46rem;max-width:38px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .voice-wave{display:none;}
   /* v36b: ensure mic-btn stays visible — never compressed or clipped by overflow:hidden */
   .dock-voice{flex-shrink:0;overflow:visible;}
@@ -734,8 +736,8 @@ button{
    Layout: identical to desktop side-by-side.
    Narrower chat panel, smaller controls.
    ════════════════════════════════════════════════════════ */
-/* v36b: expanded to 599px — covers taller phone landscapes; orientation:landscape = width>height */
-@media (max-height:599px) and (orientation:landscape){
+/* v36c: min-aspect-ratio:1/1 = width≥height (pure dimension landscape, no sensor dependency) */
+@media (max-height:599px) and (min-aspect-ratio:1/1){
   :root{--topbar-h:40px;--ribbon-h:34px;--dock-h:44px;--chat-w:230px;}
 
   /* v25: prevent any element from exceeding viewport */
@@ -779,8 +781,10 @@ button{
   /* ── Dock ── */
   .dock{overflow:hidden;}
   .dock-inner{gap:.22rem;padding:0;overflow:hidden;}
-  .vol-wrap{display:none;}
-  .mic-state-txt{display:none;}
+  /* v36c: compact vol-wrap and mic-state-txt in landscape too */
+  .vol-wrap{display:flex;flex-direction:column;gap:1px;}
+  .vol-slider{width:40px;}
+  .mic-state-txt{display:block;font-size:.44rem;max-width:34px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .voice-wave{display:none;}
   /* v36b: ensure mic-btn stays visible in landscape too */
   .dock-voice{flex-shrink:0;overflow:visible;}
