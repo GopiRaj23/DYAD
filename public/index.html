@@ -228,7 +228,7 @@ button{
 }
 .ribbon-btn.active{color:var(--gold);background:rgba(225,193,121,.05);border-bottom:2px solid var(--gold);}
 .ribbon-btn:hover:not(.active){color:var(--text);background:rgba(255,255,255,.03);}
-.yt-tray{flex:0 0 auto;margin-left:auto;display:none;align-items:center;gap:.45rem;padding:0 .7rem;}
+.yt-tray{flex:1;display:none;align-items:center;gap:.45rem;padding:0 .7rem;overflow:hidden;}
 .yt-tray.open{display:flex;}
 .yt-tray input{flex:1;margin-bottom:0;padding:.38rem .65rem;font-size:.76rem;height:30px;}
 .yt-load{background:linear-gradient(135deg,var(--gold),var(--gold-deep));color:var(--bg-deep);font-size:.64rem;font-weight:700;border-radius:var(--r-xs);padding:.38rem .8rem;white-space:nowrap;flex-shrink:0;}
@@ -530,7 +530,7 @@ button{
   letter-spacing:0;text-transform:none;
 }
 .epanel-btn:hover{transform:scale(1.22);background:var(--surface3);}
-.dock-next{display:flex;align-items:center;gap:.3rem;flex-shrink:0;width:220px;}
+.dock-next{flex:0 0 auto;margin-left:auto;display:none;align-items:center;gap:.3rem;}
 .dock-next input{flex:1;min-width:0;margin-bottom:0;padding:.42rem .56rem;font-size:.71rem;background:var(--surface);border-color:var(--border);}
 .load-btn{background:var(--surface2);border:1px solid var(--border-hi);color:var(--gold);font-size:.63rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;border-radius:var(--r-sm);padding:.42rem .68rem;cursor:pointer;white-space:nowrap;transition:all .18s;flex-shrink:0;}
 .load-btn:hover{background:var(--teal);}
@@ -998,13 +998,17 @@ button{
   <div class="mode-ribbon">
     <button class="ribbon-btn" id="rb-watch" onclick="ribbonWatch()">📺 Watch</button>
     <div style="width:1px;height:22px;background:var(--border);flex-shrink:0;"></div>
-    <button class="ribbon-btn" id="rb-ink" onclick="ribbonInkMind()">🎨 InkMind</button>
-    <!-- Mobile chat button -->
-    <button class="ribbon-chat-btn" id="rb-chat" onclick="toggleMobileChat()">💬 Chat</button>
-    <!-- v37: URL tray moved to right corner of ribbon -->
     <div class="yt-tray" id="yt-tray">
       <input type="text" id="yt-tray-input" placeholder="Paste YouTube URL…" autocomplete="off"/>
       <button class="yt-load" onclick="loadFromTray()">▶ Load</button>
+    </div>
+    <button class="ribbon-btn" id="rb-ink" onclick="ribbonInkMind()">🎨 InkMind</button>
+    <!-- Mobile chat button -->
+    <button class="ribbon-chat-btn" id="rb-chat" onclick="toggleMobileChat()">💬 Chat</button>
+    <!-- v37: Next-video URL moved to right corner of ribbon -->
+    <div class="dock-next" id="dock-next">
+      <input type="text" id="next-url" placeholder="YouTube URL…" autocomplete="off"/>
+      <button class="load-btn" id="load-btn" onclick="loadNextVideo()">Load</button>
     </div>
   </div>
 
@@ -1254,11 +1258,7 @@ button{
           <button class="emoji-btn" onclick="sendEmoji('😠')">😠</button>
           <button class="emoji-expand-btn" id="emoji-expand-btn" onclick="toggleEmojiPanel()" title="More reactions">😊</button>
         </div>
-        <!-- Next video URL — inline in left dock, visible to all users -->
-        <div class="dock-next" id="dock-next">
-          <input type="text" id="next-url" placeholder="YouTube URL…" autocomplete="off"/>
-          <button class="load-btn" id="load-btn" onclick="loadNextVideo()">Load</button>
-        </div>
+        <!-- Next video URL — moved to ribbon right corner (v37) -->
       </div>
       <!-- Right group: chat toggle only -->
       <div class="dock-right-group">
