@@ -114,6 +114,8 @@ button{
 .qj-btn:hover{transform:translateY(-1px);}
 .qj-err{display:none;font-size:.72rem;color:var(--red);margin-top:.5rem;}
 .qj-err.show{display:block;}
+.qj-home-btn{background:transparent;border:none;color:var(--text-dim);font-size:.72rem;cursor:pointer;margin-top:.4rem;padding:.3rem .6rem;border-radius:var(--r-sm);transition:color .2s;}
+.qj-home-btn:hover{color:var(--text);}
 
 /* ══ TOASTS ══ */
 .toast-container{position:fixed;top:calc(var(--topbar-h) + 6px);left:50%;transform:translateX(-50%);z-index:1000;display:flex;flex-direction:column;align-items:center;gap:.35rem;pointer-events:none;}
@@ -858,6 +860,7 @@ button{
     </div>
     <button class="qj-btn" onclick="doQuickJoin()">Join Now →</button>
     <div class="qj-err" id="qj-err"></div>
+    <button class="qj-home-btn" onclick="goHome()">← Home</button>
   </div>
 </div>
 
@@ -1258,7 +1261,15 @@ button{
 <script>
 /* ══════ STATE ══════ */
 let socket=null, player=null, ytLoaded=false, _pendingAutoSync=false;
-let isHost=false, isSyncing=false, roomCode=null, myUsername='', roomMode='stream';
+// v36: isSyncing replaced with a depth counter so overlapping setTimeout clears
+// don't prematurely unlock — each caller increments on set and decrements on clear.
+// CRITICAL SAFEGUARD: all existing isSyncing=true/false call sites work unchanged.
+let _syncDepth=0;
+Object.defineProperty(window,'isSyncing',{
+  get:()=>_syncDepth>0,
+  set:(v)=>{if(v){_syncDepth++;}else{_syncDepth=Math.max(0,_syncDepth-1);}}
+});
+let isHost=false, roomCode=null, myUsername='', roomMode='stream';
 let guestHasInteracted=false, heartbeatInt=null;
 let currentTab='watch', timerTotal=60;
 let gameRounds=1, participantCount=1;
@@ -1647,7 +1658,9 @@ function createPlayer(videoId,startTime){
           setTimeout(()=>{isSyncing=false;},1200);
           res();
         },
-        onStateChange:onPlayerState
+        onStateChange:onPlayerState,
+        // v36: recover GPU-layer black-screen on YT API errors (e.g. state -1 after rapid pause/play)
+        onError:(ev)=>{console.warn('YT player error',ev.data);setTimeout(forceRepaint,200);}
       }
     });
   });
@@ -1676,6 +1689,8 @@ function onPlayerState(ev){
   if(ev.data===YT.PlayerState.PLAYING){
     _lastEmittedPauseAt=-1;_stopPausePoll(); // no longer paused
     guestHasInteracted=true;
+    // v36: nudge AudioContext awake — YT acquiring media focus can suspend WebRTC AudioContext
+    if(_audioCtx&&_audioCtx.state==='suspended')_audioCtx.resume().catch(()=>{});
     if(socket&&roomCode){
       const t=player.getCurrentTime();
       socket.emit('sync-event',{type:'play',timestamp:t,sentAt:Date.now()});
@@ -1700,7 +1715,9 @@ function startHeartbeat(){if(!isHost||heartbeatInt)return;heartbeatInt=setInterv
 function stopHeartbeat(){if(heartbeatInt){clearInterval(heartbeatInt);heartbeatInt=null;}}
 function playPause(){
   if(!player)return;
-  const playing=player.getPlayerState()===YT.PlayerState.PLAYING;
+  // v36: treat BUFFERING (3) as playing — on mobile, first pause tap while buffering was ignored
+  const s=player.getPlayerState();
+  const playing=s===YT.PlayerState.PLAYING||s===YT.PlayerState.BUFFERING;
   const t=player.getCurrentTime();
   if(socket&&roomCode){socket.emit('sync-event',{type:playing?'pause':'play',timestamp:t,sentAt:Date.now()});}
   lastLocalSyncAt=Date.now(); // protect from heartbeat snap-back
@@ -1820,6 +1837,10 @@ function keepAudioAlive(stream){
     const gain=_audioCtx.createGain();gain.gain.value=0; // silent — we don't want echo
     src.connect(gain);gain.connect(_audioCtx.destination);
     if(_audioCtx.state==='suspended')_audioCtx.resume().catch(()=>{});
+    // v36: auto-resume whenever the OS suspends the AudioContext (e.g. YT acquires audio focus)
+    _audioCtx.addEventListener('statechange',()=>{
+      if(_audioCtx&&_audioCtx.state==='suspended')_audioCtx.resume().catch(()=>{});
+    });
   }catch(e){console.warn('AudioContext keep-alive failed:',e);}
 }
 
@@ -2119,6 +2140,8 @@ function joinGameRoom(){
   if(code.length<4){showErr('err-join-game','Enter the 6-character room code.');return;}
   myUsername=username;clearErr('err-join-game');initSocket();socket.emit('join-room',{roomCode:code,username});
 }
+// v36: return to landing page — strips ?room= param
+function goHome(){window.location.href=window.location.origin;}
 function doQuickJoin(){
   const params=new URLSearchParams(window.location.search);
   const code=(params.get('room')||'').trim().toUpperCase();
@@ -2491,7 +2514,8 @@ function initSocket(){
     // v22 Fix #1: Skip corrections if WE recently emitted a sync-event (seek/play/pause).
     // The heartbeat may carry a stale host position that hasn't settled to our seek target yet.
     if(Date.now()-lastLocalSyncAt<3500)return;
-    if(Math.abs(player.getCurrentTime()-timestamp)>0.5){isSyncing=true;player.seekTo(timestamp,true);flashSync();setTimeout(()=>{isSyncing=false;},400);}
+    // v36: raised from 0.5s→1.5s — reduces micro-corrections on mobile with buffering delays
+    if(Math.abs(player.getCurrentTime()-timestamp)>1.5){isSyncing=true;player.seekTo(timestamp,true);flashSync();setTimeout(()=>{isSyncing=false;},400);}
     const myPlay=player.getPlayerState()===YT.PlayerState.PLAYING;
     if(isPlaying&&!myPlay&&guestHasInteracted){isSyncing=true;player.playVideo();setTimeout(forceRepaint,100);setTimeout(()=>{isSyncing=false;},400);}
     else if(!isPlaying&&myPlay){isSyncing=true;player.pauseVideo();setTimeout(()=>{isSyncing=false;},400);}
