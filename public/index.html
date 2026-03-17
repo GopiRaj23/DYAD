@@ -677,10 +677,11 @@ button{
   .game-info-bar{flex-shrink:0;flex-wrap:nowrap;gap:.2rem;padding:.06rem 0;min-height:0;}
   .game-status{font-size:.58rem;}
   #word-area{font-size:clamp(.82rem,3.8vw,1.05rem);}
-  /* v34: word picker must fit inside canvas on all phone sizes */
-  .word-choices-grid{max-width:min(92%,240px);gap:.35rem;}
-  .word-choice-btn{font-size:clamp(.68rem,3.5vw,.88rem);padding:.44rem .22rem;}
-  .choice-countdown{font-size:2rem;}
+  /* v35: word picker must fit inside canvas on all phone sizes including 320px */
+  .sc-overlay{overflow-y:auto;}
+  .word-choices-grid{max-width:min(88%,220px);gap:.28rem;overflow-y:auto;}
+  .word-choice-btn{font-size:clamp(.62rem,3.2vw,.85rem);padding:.38rem .18rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .choice-countdown{font-size:1.8rem;}
   .live-score-bar{gap:.14rem;flex-shrink:0;}
   .score-pill{font-size:.5rem;padding:.06rem .28rem;}
   .canvas-toolbar{
@@ -692,7 +693,10 @@ button{
   .color-swatch{width:18px;height:18px;flex-shrink:0;}
   .canvas-act{font-size:.5rem;padding:.18rem .38rem;}
   .brush-slider{width:42px;}
-  .scribble-wrap{flex:1;min-height:0;}
+  /* v35: CSS aspect-ratio drives canvas height — no JS pixel math needed.
+     wrap shrinks to content (flex:0 0 auto), width=100% of room-left,
+     height auto-derived from 16:9. resizeCanvas() then reads wrap size. */
+  .scribble-wrap{flex:0 0 auto;width:100%;aspect-ratio:16/9;min-height:0;}
 
   /* ── Dock: essentials only ── */
   .dock-inner{justify-content:flex-start;gap:.28rem;padding:0;}
@@ -1445,26 +1449,10 @@ async function loadFromTray(){
   document.getElementById('yt-tray-input').value='';
 }
 
-// FIX 4 / v26: Adjust room-left height dynamically for mobile portrait.
-// Watch: auto-height (video 16:9 determines it via aspect-ratio on player-box).
-// InkMind: same width-based height as video (viewport-width * 9/16) so the canvas
-// area is locked and stable when the keyboard opens (width never changes).
-function adjustMobileLayout(tab){
-  const portrait=window.innerWidth<640&&window.innerHeight>window.innerWidth;
-  const rl=document.getElementById('room-left');
-  if(!rl)return;
-  if(portrait){
-    if(tab==='ink'){
-      // v34: 60% of viewport height for ink canvas in portrait — more room for canvas
-      const targetH=Math.round(window.innerHeight*0.60);
-      rl.style.flex='0 0 '+targetH+'px';
-    }else{
-      rl.style.flex='';  // auto — video aspect-ratio sizes it
-    }
-  }else{
-    rl.style.flex='';  // landscape / desktop: CSS handles it
-  }
-}
+// v35: adjustMobileLayout() retired — CSS aspect-ratio:16/9 on .scribble-wrap
+// drives canvas height automatically on all screen sizes. No JS pixel math needed.
+// CRITICAL SAFEGUARD: keep function as no-op so existing call sites don't throw.
+function adjustMobileLayout(tab){}
 
 function switchTab(tab){
   currentTab=tab;
@@ -1571,8 +1559,15 @@ window.addEventListener('DOMContentLoaded',()=>{
     }
   });
 
-  // Resize — cover all mobile viewport change triggers
-  window.addEventListener('resize',()=>{if(currentTab==='ink')resizeCanvas();});
+  // v35: ResizeObserver on scribble-wrap catches all reflows (flex, keyboard, orientation).
+  // Falls back to window.resize on old browsers. window.resize alone misses container reflows.
+  if(window.ResizeObserver){
+    const _ro=new ResizeObserver(()=>{if(currentTab==='ink')resizeCanvas();});
+    const _wrap=document.querySelector('.scribble-wrap');
+    if(_wrap)_ro.observe(_wrap);
+  }else{
+    window.addEventListener('resize',()=>{if(currentTab==='ink')resizeCanvas();});
+  }
   if(window.visualViewport){
     window.visualViewport.addEventListener('resize',()=>{
       applyKeyboardLayout();
@@ -2020,13 +2015,13 @@ function resizeCanvas(){
   if(!wrap)return;
   const maxW=wrap.offsetWidth;
   const maxH=wrap.offsetHeight;
-  if(!maxW||!maxH)return;
-  // Compute the largest 4:3 box that fits inside the wrap — letterboxed/pillarboxed as needed
-  let cw,ch;
-  if(maxW/maxH>CANVAS_RATIO){ch=maxH;cw=Math.floor(ch*CANVAS_RATIO);}
-  else{cw=maxW;ch=Math.floor(cw/CANVAS_RATIO);}
-  // Clamp to available space
-  cw=Math.min(cw,maxW);ch=Math.min(ch,maxH);
+  if(!maxW)return;
+  // v35: width-primary sizing — canvas height always derived from width / ratio.
+  // Portrait mobile: wrap height may be 0 before layout settles; use width-only.
+  // Desktop/landscape: also width-primary but clamp to available height to avoid overflow.
+  let cw=maxW,ch=Math.floor(maxW/CANVAS_RATIO);
+  if(maxH&&ch>maxH){ch=maxH;cw=Math.floor(ch*CANVAS_RATIO);}  // clamp for desktop
+  cw=Math.min(cw,maxW);if(maxH)ch=Math.min(ch,maxH);
   const area=document.getElementById('canvas-area');
   if(area){area.style.width=cw+'px';area.style.height=ch+'px';}
   if(drawCanvas.width===cw&&drawCanvas.height===ch)return;
