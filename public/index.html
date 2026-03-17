@@ -842,9 +842,10 @@ button{
 /* ── v32: FEEDBACK BUTTON & MODAL ───────────────────────────────────────── */
 #feedback-btn{position:fixed;z-index:9000;background:var(--surface2);border:1px solid var(--border-hi);color:var(--text-dim);font-size:.62rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;border-radius:var(--r-sm);padding:.42rem .9rem;cursor:pointer;transition:all .2s;opacity:.7;}
 #feedback-btn:hover{opacity:1;background:var(--teal);color:var(--text);}
-#feedback-btn.pos-center{left:50%;bottom:1.2rem;transform:translateX(-50%);}
-/* v36b: sit above the dock + iPhone home-indicator safe area */
-#feedback-btn.pos-corner{right:calc(1.1rem + env(safe-area-inset-right,0px));bottom:calc(var(--dock-h) + env(safe-area-inset-bottom,0px) + 0.5rem);}
+/* v36d: always bottom-right on every page — above dock in room, standard gap on landing.
+   --dock-h is 68px globally (0 effective on landing page since no dock is rendered). */
+#feedback-btn{right:calc(1.1rem + env(safe-area-inset-right,0px));bottom:calc(var(--dock-h) + env(safe-area-inset-bottom,0px) + 0.5rem);}
+#feedback-btn.pos-landing{bottom:calc(1.4rem + env(safe-area-inset-bottom,0px));}
 #feedback-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.62);z-index:9100;align-items:center;justify-content:center;}
 #feedback-overlay.show{display:flex;}
 #feedback-modal{background:var(--surface);border:1px solid var(--border-hi);border-radius:var(--r);padding:1.4rem 1.6rem;width:min(92vw,400px);display:flex;flex-direction:column;gap:.9rem;}
@@ -2856,10 +2857,10 @@ function getFeedbackLabel(){
   return currentTab==='ink'?'inkmind':'cowatch';
 }
 function updateFeedbackPos(){
+  // v36d: always bottom-right — use .pos-landing only on landing page (no dock → smaller gap)
   const btn=document.getElementById('feedback-btn');if(!btn)return;
   const onLanding=!document.getElementById('page-landing').classList.contains('hidden');
-  btn.classList.toggle('pos-center',onLanding);
-  btn.classList.toggle('pos-corner',!onLanding);
+  btn.classList.toggle('pos-landing',onLanding);
 }
 function openFeedback(){document.getElementById('feedback-overlay').classList.add('show');}
 function closeFeedback(){document.getElementById('feedback-overlay').classList.remove('show');}
@@ -2890,7 +2891,7 @@ updateFeedbackPos();
 </script>
 
 <!-- v32: Feedback button (repositioned via updateFeedbackPos) -->
-<button id="feedback-btn" class="pos-center" onclick="openFeedback()">💬 Feedback</button>
+<button id="feedback-btn" class="pos-landing" onclick="openFeedback()">💬 Feedback</button>
 
 <!-- v32: Feedback modal -->
 <div id="feedback-overlay" onclick="if(event.target===this)closeFeedback()">
