@@ -162,9 +162,10 @@ button{
 .gcm-cancel:hover{color:var(--text);border-color:var(--border-hi);}
 
 /* ══ LEADERBOARD ══ */
-.lb-overlay{position:fixed;inset:0;z-index:700;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.85);backdrop-filter:blur(12px);}
+/* v38: scoped to game canvas — position:absolute inside canvas-area (position:relative) */
+.lb-overlay{position:absolute;inset:0;z-index:700;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.88);backdrop-filter:blur(8px);border-radius:var(--r);}
 .lb-overlay.open{display:flex;}
-.lb-card{background:var(--surface);border:1px solid var(--border-hi);border-radius:var(--r);padding:1.8rem 1.8rem 1.5rem;width:min(420px,90vw);box-shadow:0 22px 70px rgba(0,0,0,.8);animation:riseIn .45s cubic-bezier(.22,1,.36,1) both;max-height:90vh;overflow-y:auto;}
+.lb-card{background:var(--surface);border:1px solid var(--border-hi);border-radius:var(--r);padding:1.8rem 1.8rem 1.5rem;width:min(420px,90%);box-shadow:0 22px 70px rgba(0,0,0,.8);animation:riseIn .45s cubic-bezier(.22,1,.36,1) both;max-height:90%;overflow-y:auto;}
 .lb-badge{font-size:3.2rem;display:block;text-align:center;margin-bottom:.4rem;animation:trophySpin 1.1s cubic-bezier(.22,1,.36,1) both;}
 @keyframes trophySpin{from{transform:scale(0)rotate(-25deg)}to{transform:scale(1)rotate(0)}}
 .lb-title{font-family:var(--font-brand);font-size:2rem;font-weight:700;color:var(--gold);text-align:center;margin-bottom:.25rem;}
@@ -910,20 +911,6 @@ button{
   </div>
 </div>
 
-<!-- ══ LEADERBOARD ══ -->
-<div class="lb-overlay" id="lb-overlay">
-  <div class="lb-card">
-    <span class="lb-badge">🏆</span>
-    <div class="lb-title">Game Leaderboard</div>
-    <div class="lb-sub" id="lb-sub">Final standings</div>
-    <div class="lb-list" id="lb-list"></div>
-    <div class="lb-btns">
-      <button class="lb-new" onclick="openGCM()">Play Again</button>
-      <button class="lb-close" onclick="closeLB()">Close</button>
-    </div>
-  </div>
-</div>
-
 <!-- ══ LANDING ══ -->
 <div id="page-landing">
   <div class="bg-layer bg-1"></div><div class="bg-layer bg-2"></div><div class="bg-layer bg-3"></div>
@@ -1068,6 +1055,19 @@ button{
         <div class="scribble-wrap">
           <div class="canvas-area" id="canvas-area">
             <canvas class="scribble-canvas" id="scribble-canvas"></canvas>
+            <!-- v38: Leaderboard scoped to canvas only -->
+            <div class="lb-overlay" id="lb-overlay">
+              <div class="lb-card">
+                <span class="lb-badge">🏆</span>
+                <div class="lb-title">Game Leaderboard</div>
+                <div class="lb-sub" id="lb-sub">Final standings</div>
+                <div class="lb-list" id="lb-list"></div>
+                <div class="lb-btns">
+                  <button class="lb-new" onclick="openGCM()">Play Again</button>
+                  <button class="lb-close" onclick="closeLB()">Close</button>
+                </div>
+              </div>
+            </div>
             <!-- Lobby -->
             <div class="sc-overlay" id="ov-lobby">
               <h2>🎨 InkMind</h2>
@@ -2218,6 +2218,11 @@ function leaveRoom(){
   if(localStream){localStream.getTracks().forEach(t=>t.stop());localStream=null;}
   if(_audioCtx){try{_audioCtx.close();}catch(e){} _audioCtx=null;}
   voiceState='idle';
+  // v38: clear canvas so old drawings don't show in next room
+  if(drawCtx&&drawCanvas){try{drawCtx.clearRect(0,0,drawCanvas.width,drawCanvas.height);}catch(e){}}
+  strokeHistory=[];remoteStrokeHistory=[];
+  // v38: reset video/sync state so new room starts clean
+  latestHostTimestamp=0;latestHostPlaying=false;_ppCycles=0;_syncDepth=0;
   // Reset room state
   roomCode='';myUsername='';isHost=false;
   document.getElementById('page-room').classList.add('hidden');
@@ -2396,7 +2401,12 @@ function esc(s){const d=document.createElement('div');d.textContent=s;return d.i
 function initSocket(){
   if(socket)return;
   // v34: start with polling so mobile networks (carrier NAT) can connect, then upgrade to WS
-  socket=io({transports:['polling','websocket'],upgrade:true});
+  // v38: reconnection enabled with generous retries — mobile app-switches won't drop the session
+  socket=io({
+    transports:['polling','websocket'],upgrade:true,
+    reconnection:true,reconnectionAttempts:Infinity,
+    reconnectionDelay:2000,reconnectionDelayMax:15000
+  });
 
   socket.on('room-created',async({roomCode:code,videoId,mode,participants})=>{
     roomCode=code;isHost=true;roomMode=mode||'stream';participantCount=1;
@@ -2518,31 +2528,35 @@ function initSocket(){
     }
   });
 
+  // v38: debounce rapid sync-events — last event wins within 250ms window to prevent
+  // rapid play/pause causing YT player confusion and black screen on host/others
+  let _syncEvtTimer=null;
   socket.on('sync-event',({type,timestamp,sentAt,username})=>{
     if(!player)return;
-    const lag=sentAt?Math.min((Date.now()-sentAt)/1000,0.4):0;
-    const adjTs=type==='play'?timestamp+lag:timestamp;
-    // Long isSyncing window (1200ms) — prevents onPlayerState re-emit and
-    // blocks the next heartbeat from overriding this state while YT resolves the command
-    isSyncing=true;
-    if(Math.abs(player.getCurrentTime()-adjTs)>0.3)player.seekTo(adjTs,true);
-    if(type==='play'){
-      player.playVideo();guestHasInteracted=true;
-      setTimeout(forceRepaint,100);setTimeout(forceRepaint,400);
-      if(username)showChatNotif(`▶ ${username} played`);
-      // v22 Fix #9: remove persistent pause banner on play
-      clearPauseBanner();
-    }
-    if(type==='pause'){
-      player.pauseVideo();
-      if(username){
-        showChatNotif(`⏸ ${username} paused`);
-        // v22 Fix #9: show persistent pause banner until play
-        showPauseBanner(username);
+    if(_syncEvtTimer)clearTimeout(_syncEvtTimer);
+    _syncEvtTimer=setTimeout(()=>{
+      _syncEvtTimer=null;
+      const lag=sentAt?Math.min((Date.now()-sentAt)/1000,0.4):0;
+      const adjTs=type==='play'?timestamp+lag:timestamp;
+      // Long isSyncing window (1200ms) — prevents onPlayerState re-emit and
+      // blocks the next heartbeat from overriding this state while YT resolves the command
+      isSyncing=true;
+      if(Math.abs(player.getCurrentTime()-adjTs)>0.3)player.seekTo(adjTs,true);
+      if(type==='play'){
+        player.playVideo();guestHasInteracted=true;
+        setTimeout(forceRepaint,100);setTimeout(forceRepaint,400);
+        if(username)showChatNotif(`▶ ${username} played`);
+        clearPauseBanner();
       }
-    }
-    flashSync();
-    setTimeout(()=>{isSyncing=false;},1200);
+      if(type==='pause'){
+        player.pauseVideo();
+        // v38: forceRepaint on pause too — rapid pause can leave black GPU layer
+        setTimeout(forceRepaint,150);setTimeout(forceRepaint,500);
+        if(username){showChatNotif(`⏸ ${username} paused`);showPauseBanner(username);}
+      }
+      flashSync();
+      setTimeout(()=>{isSyncing=false;},1200);
+    },250);
   });
   socket.on('heartbeat',({timestamp,isPlaying})=>{
     latestHostTimestamp=timestamp;
@@ -2634,16 +2648,37 @@ function initSocket(){
     document.getElementById(ch==='watch'?'watch-msgs':'ink-msgs').scrollTop=9999;
   });
   socket.on('host-disconnected',()=>{stopHeartbeat();sysChat('watch','Host left — session ended');alert('The host disconnected.');});
-  // v34: handle unexpected socket drop (mobile idle/background) — show reload prompt instead of frozen screen
+  // v38: on unexpected disconnect show reconnecting banner — socket.io auto-reconnects.
+  // User is NOT kicked out; session resumes automatically when connection is restored.
+  // Only show "reload" option after all reconnection attempts fail.
   socket.on('disconnect',(reason)=>{
     if(reason==='io client disconnect')return; // intentional (leaveRoom) — ignore
+    if(document.getElementById('reconnect-overlay'))return; // banner already showing
     const overlay=document.createElement('div');
     overlay.id='reconnect-overlay';
-    overlay.style.cssText='position:fixed;inset:0;background:rgba(8,15,16,.92);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;';
-    overlay.innerHTML='<p style="font-family:var(--font-brand);font-size:1.1rem;color:var(--gold);">Connection lost</p>'
-      +'<p style="font-size:.78rem;color:var(--text-dim);text-align:center;max-width:260px;">Your session timed out. Rejoin using the room link.</p>'
-      +'<button onclick="location.reload()" style="background:var(--gold);color:var(--bg-deep);border:none;border-radius:var(--r-sm);padding:.7rem 1.8rem;font-size:.76rem;font-weight:700;cursor:pointer;">Reload & Rejoin</button>';
+    overlay.style.cssText='position:fixed;inset:0;background:rgba(8,15,16,.85);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.8rem;pointer-events:none;';
+    overlay.innerHTML='<p style="font-family:var(--font-brand);font-size:1rem;color:var(--gold);">Reconnecting…</p>'
+      +'<p style="font-size:.75rem;color:var(--text-dim);text-align:center;max-width:240px;">Network interruption detected. Reconnecting automatically…</p>';
     document.body.appendChild(overlay);
+  });
+  // v38: on successful reconnect — remove banner and rejoin room automatically
+  socket.on('connect',()=>{
+    const overlay=document.getElementById('reconnect-overlay');
+    if(overlay)overlay.remove();
+    if(roomCode&&myUsername){
+      socket.emit('join-room',{roomCode,username:myUsername});
+      toast('✓ Reconnected to room');
+    }
+  });
+  socket.on('reconnect_failed',()=>{
+    // All attempts failed — offer manual reload
+    const overlay=document.getElementById('reconnect-overlay');
+    if(overlay){
+      overlay.style.pointerEvents='auto';
+      overlay.innerHTML='<p style="font-family:var(--font-brand);font-size:1rem;color:var(--gold);">Connection lost</p>'
+        +'<p style="font-size:.75rem;color:var(--text-dim);text-align:center;max-width:240px;">Could not reconnect. Rejoin using the room link.</p>'
+        +'<button onclick="location.reload()" style="background:var(--gold);color:var(--bg-deep);border:none;border-radius:var(--r-sm);padding:.7rem 1.8rem;font-size:.76rem;font-weight:700;cursor:pointer;">Reload & Rejoin</button>';
+    }
   });
   // FIX 2: host migration — promote self or update UI when host changes
   socket.on('host-migrated',({newHostId,newHostName,participants})=>{
