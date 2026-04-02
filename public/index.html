@@ -1623,6 +1623,9 @@ function forceRepaint(){
   try{
     const iframe=player&&player.getIframe?player.getIframe():document.querySelector('#yt-player iframe');
     if(!iframe)return;
+    // v39: force a synchronous layout pass on the parent — invalidates compositor layers more
+    // reliably on Windows Chrome/Edge where brightness nudge alone may not reach the iframe content
+    void iframe.parentElement?.offsetHeight;
     // Nudge filter to force compositor snapshot (doesn't remove translate3d GPU layer)
     iframe.style.filter='brightness(0.9999)';
     requestAnimationFrame(()=>{
@@ -1758,7 +1761,7 @@ function playPause(){
   if(socket&&roomCode){socket.emit('sync-event',{type:playing?'pause':'play',timestamp:t,sentAt:Date.now()});}
   lastLocalSyncAt=Date.now(); // protect from heartbeat snap-back
   isSyncing=true;
-  if(playing){player.pauseVideo();}
+  if(playing){player.pauseVideo();setTimeout(forceRepaint,150);setTimeout(forceRepaint,500);}
   else{player.playVideo();setTimeout(forceRepaint,100);setTimeout(forceRepaint,400);}
   setTimeout(()=>{isSyncing=false;},800);
   // v36b: extra repaint every 3 pause/play cycles to combat GPU layer staling
@@ -2545,13 +2548,19 @@ function initSocket(){
       if(type==='play'){
         player.playVideo();guestHasInteracted=true;
         setTimeout(forceRepaint,100);setTimeout(forceRepaint,400);
+        // v39: extended cascade — mobile sender may have triggered seekTo; YT iframe can take
+        // up to 1.2s to render the new frame after seekTo+play, so repaint at 700ms covers it
+        setTimeout(forceRepaint,700);
         if(username)showChatNotif(`▶ ${username} played`);
         clearPauseBanner();
       }
       if(type==='pause'){
         player.pauseVideo();
         // v38: forceRepaint on pause too — rapid pause can leave black GPU layer
+        // v39: extended cascade — seekTo+pause from mobile causes YT iframe to load a new frame;
+        // GPU compositor may not settle until ~1.2s after the command, so cover the full window
         setTimeout(forceRepaint,150);setTimeout(forceRepaint,500);
+        setTimeout(forceRepaint,800);setTimeout(forceRepaint,1200);
         if(username){showChatNotif(`⏸ ${username} paused`);showPauseBanner(username);}
       }
       flashSync();
