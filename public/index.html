@@ -1314,6 +1314,7 @@ let pendingVideoState=null; // {videoId, timestamp, isPlaying}
 let mobileChatOpen=false;
 let latestHostTimestamp=0, latestHostPlaying=false; // tracks host position for sync
 let lastLocalSyncAt=0; // v22: timestamp of our last sync-event emission — suppresses heartbeat snap-back
+let _wasPlayingBeforeHide=false; // v39: track play state across minimize/tab-switch
 
 /* ══════ NAMES ══════ */
 const ADJ=['Swift','Calm','Bright','Bold','Clear','Keen','Noble','Sage','Warm','Vivid','Crisp','Pure','Quiet','Sharp','Steady','True','Brave','Witty','Clever','Gentle','Amber','Azure','Silver','Golden','Agile','Earnest','Focused','Loyal','Serene','Valiant'];
@@ -1648,8 +1649,22 @@ function pinIframeGPULayer(){
     iframe.style.webkitBackfaceVisibility='hidden';
   }catch(e){}
 }
-// Force repaint when tab becomes visible again (user returning from another app)
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&player){setTimeout(forceRepaint,80);setTimeout(forceRepaint,300);}});
+// v39: track play state on hide; resume + repaint on show
+// Browser auto-pauses the YT iframe when hidden — we restore it silently so the room is unaffected.
+document.addEventListener('visibilitychange',()=>{
+  if(!player)return;
+  if(document.visibilityState==='hidden'){
+    _wasPlayingBeforeHide=player.getPlayerState()===YT.PlayerState.PLAYING||player.getPlayerState()===YT.PlayerState.BUFFERING;
+  }else{
+    setTimeout(forceRepaint,80);setTimeout(forceRepaint,300);
+    if(_wasPlayingBeforeHide){
+      _wasPlayingBeforeHide=false;
+      isSyncing=true;
+      player.playVideo();
+      setTimeout(()=>{isSyncing=false;},600);
+    }
+  }
+});
 function updateVolTrack(s){const p=((s.value-s.min)/(s.max-s.min))*100;s.style.background=`linear-gradient(to right,var(--gold) ${p}%,var(--surface3) ${p}%)`;}
 /* ══════ YOUTUBE ══════ */
 function loadYTAPI(){
@@ -1718,6 +1733,9 @@ function onPlayerState(ev){
     // v22 Fix #9: clear pause banner when local user plays
     clearPauseBanner();
   }else if(ev.data===YT.PlayerState.PAUSED){
+    // v39: browser auto-pauses the YT iframe when the window is minimized or tab is hidden.
+    // Don't broadcast this as a user-intent pause — it would pause everyone else in the room.
+    if(document.visibilityState==='hidden')return;
     if(socket&&roomCode){
       const t=player.getCurrentTime();
       _lastEmittedPauseAt=t; // seed the poll baseline
