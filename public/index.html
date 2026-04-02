@@ -2573,7 +2573,12 @@ function initSocket(){
         clearPauseBanner();
       }
       if(type==='pause'){
+        // v39: triple-pause pattern — YT player in BUFFERING state ignores a single pauseVideo();
+        // it auto-resumes once buffering completes, firing onPlayerState(PLAYING) on the receiver
+        // which re-broadcasts play to the room. Three staggered calls cover the full buffer cycle.
         player.pauseVideo();
+        setTimeout(()=>{try{player.pauseVideo();}catch(e){}},300);
+        setTimeout(()=>{try{player.pauseVideo();}catch(e){}},800);
         // v38: forceRepaint on pause too — rapid pause can leave black GPU layer
         // v39: extended cascade — seekTo+pause from mobile causes YT iframe to load a new frame;
         // GPU compositor may not settle until ~1.2s after the command, so cover the full window
@@ -2582,7 +2587,9 @@ function initSocket(){
         if(username){showChatNotif(`⏸ ${username} paused`);showPauseBanner(username);}
       }
       flashSync();
-      setTimeout(()=>{isSyncing=false;},1200);
+      // v39: extend isSyncing to 1500ms — matches triple-pause window so onPlayerState(PLAYING)
+      // fired by YT buffering resume cannot re-broadcast play before all three pauses land
+      setTimeout(()=>{isSyncing=false;},1500);
     },250);
   });
   socket.on('heartbeat',({timestamp,isPlaying})=>{
