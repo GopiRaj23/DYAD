@@ -162,10 +162,10 @@ button{
 .gcm-cancel:hover{color:var(--text);border-color:var(--border-hi);}
 
 /* ══ LEADERBOARD ══ */
-/* v38: scoped to game canvas — position:absolute inside canvas-area (position:relative) */
-.lb-overlay{position:absolute;inset:0;z-index:700;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.88);backdrop-filter:blur(8px);border-radius:var(--r);}
+/* v39: fills canvas-area as a solid content view — no dark overlay, no backdrop-filter */
+.lb-overlay{position:absolute;inset:0;z-index:700;display:none;flex-direction:column;background:var(--surface);border-radius:var(--r);overflow-y:auto;padding:1.2rem 1rem;}
 .lb-overlay.open{display:flex;}
-.lb-card{background:var(--surface);border:1px solid var(--border-hi);border-radius:var(--r);padding:1.8rem 1.8rem 1.5rem;width:min(420px,90%);box-shadow:0 22px 70px rgba(0,0,0,.8);animation:riseIn .45s cubic-bezier(.22,1,.36,1) both;max-height:90%;overflow-y:auto;}
+.lb-card{background:transparent;border:none;padding:0;width:100%;box-shadow:none;animation:riseIn .45s cubic-bezier(.22,1,.36,1) both;flex:1;}
 .lb-badge{font-size:3.2rem;display:block;text-align:center;margin-bottom:.4rem;animation:trophySpin 1.1s cubic-bezier(.22,1,.36,1) both;}
 @keyframes trophySpin{from{transform:scale(0)rotate(-25deg)}to{transform:scale(1)rotate(0)}}
 .lb-title{font-family:var(--font-brand);font-size:2rem;font-weight:700;color:var(--gold);text-align:center;margin-bottom:.25rem;}
