@@ -3,6 +3,7 @@ const http     = require('http');
 const { Server } = require('socket.io');
 const path     = require('path');
 const { Pool } = require('pg');
+const { randomBytes } = require('crypto');
 
 const app    = express();
 const server = http.createServer(app);
@@ -95,10 +96,22 @@ function pickFourWords(usedWords) {
 }
 
 function generateRoomCode() {
+  // v39: use cryptographically secure RNG instead of Math.random()
   const c = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let code = '';
-  for (let i = 0; i < 6; i++) code += c[Math.floor(Math.random() * c.length)];
-  return code;
+  return Array.from(randomBytes(6)).map(b => c[b % 32]).join('');
+}
+
+// v39: input sanitisation helpers — applied at every socket boundary
+function sanitizeUsername(raw) {
+  return (typeof raw === 'string' ? raw : '').trim().slice(0, 50) || 'Guest';
+}
+function sanitizeText(raw) {
+  return (typeof raw === 'string' ? raw : '').trim().slice(0, 500);
+}
+function sanitizeVideoId(raw) {
+  // YouTube video IDs are exactly 11 alphanumeric/-/_ chars
+  const m = (typeof raw === 'string' ? raw : '').match(/^[A-Za-z0-9_-]{1,11}$/);
+  return m ? raw : null;
 }
 
 // FIX 1: Fisher-Yates shuffle for random drawer order
@@ -137,22 +150,44 @@ function clearScribbleTimers(sc) {
   if (sc.wordChoiceTimer) { clearTimeout(sc.wordChoiceTimer);  sc.wordChoiceTimer = null; }
 }
 
+// v39: per-IP room-creation rate limit — max 5 rooms per minute
+const _roomCreateTimes = new Map();
+function allowRoomCreate(ip) {
+  const now = Date.now();
+  const times = (_roomCreateTimes.get(ip) || []).filter(t => now - t < 60000);
+  if (times.length >= 5) return false;
+  times.push(now);
+  _roomCreateTimes.set(ip, times);
+  return true;
+}
+
 io.on('connection', (socket) => {
   console.log(`[+] ${socket.id}`);
 
+  // v39: per-socket rate limit state
+  let _lastChatAt = 0;
+  let _lastDrawAt = 0;
+
   /* ── CREATE ROOM ── */
   socket.on('create-room', ({ videoId, username, mode }) => {
+    const ip = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address;
+    if (!allowRoomCreate(ip)) return; // rate limit: 5 rooms/min per IP
+
+    const cleanUsername = sanitizeUsername(username);
+    const cleanVideoId  = sanitizeVideoId(videoId);
+    const cleanMode     = mode === 'game' ? 'game' : 'stream';
+
     let roomCode;
     do { roomCode = generateRoomCode(); } while (rooms.has(roomCode));
 
     rooms.set(roomCode, {
-      mode: mode || 'stream',
+      mode: cleanMode,
       hostId: socket.id,
-      hostName: username || 'Host',
-      videoId: videoId || null,
+      hostName: cleanUsername,
+      videoId: cleanVideoId || null,
       timestamp: 0, isPlaying: false, lastUpdate: Date.now(),
       peerIds: new Map(),
-      participants: new Map([[socket.id, username || 'Host']]),
+      participants: new Map([[socket.id, cleanUsername]]),
       playerTabs: new Map([[socket.id, 'watch']]),  // FIX 3: tab tracking
       chatHistory: [],  // v22: store last 80 messages for sync
       scribble: makeScribble()
@@ -161,11 +196,11 @@ io.on('connection', (socket) => {
     socket.join(roomCode);
     socket.roomCode = roomCode;
     socket.isHost = true;
-    socket.username = username || 'Host';
+    socket.username = cleanUsername;
 
     socket.emit('room-created', {
-      roomCode, videoId, mode: mode || 'stream',
-      participants: [username || 'Host']
+      roomCode, videoId: cleanVideoId, mode: cleanMode,
+      participants: [cleanUsername]
     });
   });
 
@@ -175,11 +210,13 @@ io.on('connection', (socket) => {
     const room = rooms.get(code);
     if (!room) { socket.emit('join-error', { message: 'Room not found.' }); return; }
 
+    const cleanUsername = sanitizeUsername(username);
+
     socket.join(code);
     socket.roomCode = code;
     socket.isHost = false;
-    socket.username = username || 'Guest';
-    room.participants.set(socket.id, socket.username);
+    socket.username = cleanUsername;
+    room.participants.set(socket.id, cleanUsername);
     room.playerTabs.set(socket.id, 'watch');  // FIX 3
 
     const elapsed = room.isPlaying ? (Date.now() - room.lastUpdate) / 1000 : 0;
@@ -326,8 +363,10 @@ io.on('connection', (socket) => {
     if (!socket.roomCode) return;
     const room = rooms.get(socket.roomCode);
     if (!room) return;
-    room.videoId = videoId; room.timestamp = 0; room.isPlaying = true; room.lastUpdate = Date.now();
-    socket.to(socket.roomCode).emit('watch-sync', { videoId, timestamp: 0, isPlaying: true });
+    const cleanVideoId = sanitizeVideoId(videoId);
+    if (!cleanVideoId) return; // v39: reject invalid video IDs
+    room.videoId = cleanVideoId; room.timestamp = 0; room.isPlaying = true; room.lastUpdate = Date.now();
+    socket.to(socket.roomCode).emit('watch-sync', { videoId: cleanVideoId, timestamp: 0, isPlaying: true });
     // v23: Notify all users (including sender) via chat
     const msg = { text: `📺 ${socket.username || 'Someone'} loaded a new video`, username: '⚙️ System', channel: 'watch', fromSelf_id: null };
     io.to(socket.roomCode).emit('chat-message', msg);
@@ -346,20 +385,29 @@ io.on('connection', (socket) => {
 
   /* ── CHAT ── */
   socket.on('chat-message', ({ text, username, channel }) => {
+    // v39: rate limit — max 1 message per 500ms per socket
+    const now = Date.now();
+    if (now - _lastChatAt < 500) return;
+    _lastChatAt = now;
+
     if (!socket.roomCode) return;
     const room = rooms.get(socket.roomCode);
+
+    const cleanText = sanitizeText(text);
+    if (!cleanText) return;
+    const cleanChannel = channel === 'ink' ? 'ink' : 'watch';
+    const msgUsername = socket.username || sanitizeUsername(username);
+
+    const msg = { text: cleanText, username: msgUsername, channel: cleanChannel, fromSelf_id: socket.id };
+
     // Store in chat history for new-joiner sync (v22)
     if (room) {
-      room.chatHistory.push({ text, username: username || socket.username, channel: channel || 'watch', fromSelf_id: socket.id });
+      room.chatHistory.push(msg);
       if (room.chatHistory.length > 80) room.chatHistory.shift();
     }
     // Broadcast to ALL in room including sender (io.to vs socket.to).
     // fromSelf_id lets the sender's client suppress the echo (already shown locally).
-    io.to(socket.roomCode).emit('chat-message', {
-      text, username: username || socket.username,
-      channel: channel || 'watch',
-      fromSelf_id: socket.id
-    });
+    io.to(socket.roomCode).emit('chat-message', msg);
   });
   socket.on('typing-start', ({ channel }) => {
     if (!socket.roomCode) return;
@@ -386,6 +434,8 @@ io.on('connection', (socket) => {
 
   /* ══════ INKMIND ══════ */
   socket.on('scribble-start', ({ roundsPerPlayer = 1 } = {}) => {
+    // v39: only the host may start the game
+    if (!socket.isHost) return;
     if (!socket.roomCode) return;
     const room = rooms.get(socket.roomCode);
     if (!room || room.participants.size < 2) return;
@@ -576,7 +626,13 @@ io.on('connection', (socket) => {
     }, 3500);
   }
 
-  socket.on('draw-event',   d  => { if (socket.roomCode) socket.to(socket.roomCode).emit('draw-event', d); });
+  // v39: draw-event rate limit — max 1 per 16ms (~60fps) to prevent event flooding
+  socket.on('draw-event',   d  => {
+    const now = Date.now();
+    if (now - _lastDrawAt < 16) return;
+    _lastDrawAt = now;
+    if (socket.roomCode) socket.to(socket.roomCode).emit('draw-event', d);
+  });
   socket.on('canvas-clear', () => { if (socket.roomCode) socket.to(socket.roomCode).emit('canvas-clear'); });
   socket.on('canvas-undo',  () => { if (socket.roomCode) socket.to(socket.roomCode).emit('canvas-undo'); });
 

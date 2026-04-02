@@ -964,6 +964,9 @@ button{
       </div>
     </div>
   </div>
+  <p style="text-align:center;margin-top:1.5rem;font-size:.72rem;color:#566870">
+    By using DYAD you agree to our <a href="/legal.html" target="_blank" style="color:#e1c179">Privacy Policy &amp; Terms</a> · Beta v39
+  </p>
 </div>
 
 <!-- ══ ROOM ══ -->
@@ -2280,15 +2283,24 @@ function setMembers(names){
   ['members-count','members-count-ink'].forEach(id=>{
     const el=document.getElementById(id);if(el)el.textContent=participantCount;
   });
-  const html=participantNames.map((n,i)=>{
-    const isMe=n===myUsername;
-    const isH=i===0;
-    // Names are clickable — inserts @mention into active chat input
-    return `<div class="members-dd-item${isH?' is-host':''}" onclick="mentionUser('${esc(n)}')" style="cursor:pointer">`
-      +`${isH?'':'👤 '}<span>${esc(n)}</span>${isMe?'<span class="you-tag">you</span>':''}</div>`;
-  }).join('');
+  // v39: build member items via DOM — avoids onclick attribute XSS (esc() sanitises HTML
+  // content but not JS string context inside onclick="mentionUser('...')")
   ['members-dd','members-dd-ink'].forEach(id=>{
-    const el=document.getElementById(id);if(el)el.innerHTML=html;
+    const el=document.getElementById(id);
+    if(!el)return;
+    el.innerHTML='';
+    participantNames.forEach((n,i)=>{
+      const isMe=n===myUsername;
+      const isH=i===0;
+      const div=document.createElement('div');
+      div.className='members-dd-item'+(isH?' is-host':'');
+      div.style.cursor='pointer';
+      if(!isH)div.append('👤 ');
+      const nameSpan=document.createElement('span');nameSpan.textContent=n;div.appendChild(nameSpan);
+      if(isMe){const youTag=document.createElement('span');youTag.className='you-tag';youTag.textContent='you';div.appendChild(youTag);}
+      div.addEventListener('click',()=>mentionUser(n));
+      el.appendChild(div);
+    });
   });
   checkLobbyMinPlayers();
 }
@@ -2738,8 +2750,13 @@ function initSocket(){
   });
   socket.on('drawing-resumed',({drawerId,drawerName,timeLeft})=>{
     updateTimer(timeLeft);
+    // v39: avoid XSS via drawerName
     const gs=document.getElementById('game-status');
-    if(gs)gs.innerHTML=drawerId===socket.id?'✏️ Draw your word!':`<strong>${drawerName}</strong> is drawing`;
+    if(gs){
+      gs.textContent='';
+      if(drawerId===socket.id){gs.textContent='✏️ Draw your word!';}
+      else{const s=document.createElement('strong');s.textContent=drawerName;gs.append(s,' is drawing');}
+    }
   });
 
   /* ── INKMIND ── */
@@ -2762,11 +2779,14 @@ function initSocket(){
     isDrawer=(drawerId===socket.id);
     if(isDrawer){
       showOv('ov-choice');startCC('cc-drawer',choiceTime||10);
-      document.getElementById('game-status').innerHTML='✏️ Pick your word!';
+      document.getElementById('game-status').textContent='✏️ Pick your word!';
     }else{
       document.getElementById('choosing-msg').textContent=`${drawerName} is choosing…`;
       showOv('ov-choosing');startCC('cc-watcher',choiceTime||10);
-      document.getElementById('game-status').innerHTML=`<strong>${drawerName}</strong> is drawing`;
+      // v39: use textContent/DOM to avoid XSS via drawerName
+      const gs=document.getElementById('game-status');gs.textContent='';
+      const strong=document.createElement('strong');strong.textContent=drawerName;
+      gs.append(strong,' is drawing');
     }
     document.getElementById('canvas-toolbar').style.display='none';
     drawCanvas.className='scribble-canvas';
@@ -2787,12 +2807,14 @@ function initSocket(){
     if(isDrawer){
       document.getElementById('canvas-toolbar').style.display='flex';
       drawCanvas.className='scribble-canvas drawing';
-      document.getElementById('game-status').innerHTML='✏️ Draw your word!';
+      document.getElementById('game-status').textContent='✏️ Draw your word!';
       document.getElementById('ink-chat-title').textContent='💬 InkMind Chat';
     }else{
       document.getElementById('canvas-toolbar').style.display='none';
       drawCanvas.className='scribble-canvas';
-      document.getElementById('game-status').innerHTML=`<strong>${drawerName}</strong> is drawing`;
+      // v39: avoid XSS via drawerName
+      const gs2=document.getElementById('game-status');gs2.textContent='';
+      const s2=document.createElement('strong');s2.textContent=drawerName;gs2.append(s2,' is drawing');
       document.getElementById('ink-chat-title').textContent='🎯 Guess the word!';
     }
     requestAnimationFrame(()=>requestAnimationFrame(resizeCanvas));
@@ -2843,16 +2865,20 @@ function initSocket(){
       if(isDrawer){
         document.getElementById('canvas-toolbar').style.display='flex';
         drawCanvas.className='scribble-canvas drawing';
-        document.getElementById('game-status').innerHTML='✏️ Draw your word!';
+        document.getElementById('game-status').textContent='✏️ Draw your word!';
       }else{
-        document.getElementById('game-status').innerHTML=`<strong>${drawerName}</strong> is drawing`;
+        // v39: avoid XSS via drawerName
+        const gsA=document.getElementById('game-status');gsA.textContent='';
+        const sA=document.createElement('strong');sA.textContent=drawerName;gsA.append(sA,' is drawing');
         if(blanks){currentBlanksStr=blanks;renderBlanks(blanks,null);}
         document.getElementById('ink-chat-title').textContent='🎯 Guess the word!';
       }
     }else if(phase==='choosing'){
       document.getElementById('choosing-msg').textContent=`${drawerName} is choosing…`;
       showOv('ov-choosing');
-      document.getElementById('game-status').innerHTML=`<strong>${drawerName}</strong> is choosing a word`;
+      // v39: avoid XSS via drawerName
+      const gsB=document.getElementById('game-status');gsB.textContent='';
+      const sB=document.createElement('strong');sB.textContent=drawerName;gsB.append(sB,' is choosing a word');
     }
     requestAnimationFrame(()=>requestAnimationFrame(resizeCanvas));
   });
