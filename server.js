@@ -6,9 +6,10 @@ const { Pool } = require('pg');
 
 const app    = express();
 const server = http.createServer(app);
-// v38: extend pingTimeout so mobile clients going to background (e.g. copying YouTube URL)
-// don't get disconnected — default 20s is too short for mobile app-switch
-const io     = new Server(server, { pingTimeout: 120000, pingInterval: 25000 });
+// v39: raise pingTimeout to 5 min — mobile users browsing YouTube to copy a URL can be
+// away from the app for 2-4 min; 120s was still too short. pingInterval raised to 45s
+// so the OS has more breathing room before the first ping is even sent.
+const io     = new Server(server, { pingTimeout: 300000, pingInterval: 45000 });
 
 // ── PostgreSQL: beta feedback DB ─────────────────────────────────────────────
 // Railway: add reference var DATABASE_URL = ${{Postgres.DATABASE_URL}} in app service variables
