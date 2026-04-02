@@ -1662,9 +1662,18 @@ document.addEventListener('visibilitychange',()=>{
     setTimeout(forceRepaint,80);setTimeout(forceRepaint,300);
     if(_wasPlayingBeforeHide){
       _wasPlayingBeforeHide=false;
-      isSyncing=true;
-      player.playVideo();
-      setTimeout(()=>{isSyncing=false;},600);
+      // v39 fix: don't blindly resume — respect room state that may have changed while hidden.
+      // For guests: latestHostPlaying is kept up-to-date by heartbeats even when tab is hidden
+      // (socket.io continues running in background), so it accurately reflects current room state.
+      // For the host: host is authoritative, always safe to resume their own player.
+      const shouldResume=isHost||latestHostPlaying;
+      if(shouldResume){
+        isSyncing=true;
+        player.playVideo();
+        setTimeout(()=>{isSyncing=false;},600);
+      }
+      // If host paused while we were away: skip resume here; the next heartbeat (within 1s)
+      // will apply the pause since lastLocalSyncAt is not set by this path.
     }
   }
 });
