@@ -283,6 +283,9 @@ button{
   /* Fix 3: pin to GPU layer permanently — prevents compositor GC that causes black screen */
   transform:translate3d(0,0,0);will-change:transform;
   -webkit-backface-visibility:hidden;backface-visibility:hidden;}
+/* Pause thumbnail overlay — shown instead of black frame when video is paused */
+.pause-thumb{position:absolute;inset:0;z-index:5;background:#000;display:flex;align-items:center;justify-content:center;pointer-events:none;}
+.pause-thumb img{width:100%;height:100%;object-fit:cover;}
 .emoji-float{position:absolute;font-size:2.6rem;pointer-events:none;z-index:50;user-select:none;
   filter:drop-shadow(0 3px 9px rgba(0,0,0,.6));animation:floatUp 2.6s cubic-bezier(.22,1,.36,1) forwards;}
 @keyframes floatUp{0%{opacity:0;transform:translateY(0)scale(.3)}14%{opacity:1;transform:translateY(-18px)scale(1.25)}50%{opacity:1;transform:translateY(-66px)scale(1)}100%{opacity:0;transform:translateY(-145px)scale(.8)}}
@@ -1011,6 +1014,10 @@ button{
         <div class="player-wrap">
           <div class="player-box" id="player-box">
             <div id="yt-player"></div>
+            <!-- pause thumbnail: shown when video is paused so users see the frame instead of a black screen -->
+            <div id="pause-thumb" class="pause-thumb" style="display:none;">
+              <img id="pause-thumb-img" src="" alt="" />
+            </div>
             <div class="no-video" id="no-video">
               <h3>No video yet</h3>
               <p>Use the Watch tab above to load a YouTube video.</p>
@@ -1317,6 +1324,7 @@ let pendingVideoState=null; // {videoId, timestamp, isPlaying}
 let mobileChatOpen=false;
 let latestHostTimestamp=0, latestHostPlaying=false; // tracks host position for sync
 let lastLocalSyncAt=0; // v22: timestamp of our last sync-event emission — suppresses heartbeat snap-back
+let currentVideoId=null; // tracks the currently loaded video ID (for pause thumbnail)
 let _wasPlayingBeforeHide=false; // v39: track play state across minimize/tab-switch
 
 /* ══════ NAMES ══════ */
@@ -1652,6 +1660,22 @@ function pinIframeGPULayer(){
     iframe.style.webkitBackfaceVisibility='hidden';
   }catch(e){}
 }
+// Pause thumbnail — shows the YouTube thumbnail image so users see the video frame instead of a black screen.
+// Called on every pause path (local + remote) and hidden on every play path.
+function showPauseThumb(){
+  if(!currentVideoId)return;
+  const d=document.getElementById('pause-thumb');
+  const img=document.getElementById('pause-thumb-img');
+  if(!d||!img)return;
+  // Try 1280×720 first; fall back to 480×360 which always exists for any YouTube video
+  img.onerror=()=>{img.src=`https://img.youtube.com/vi/${currentVideoId}/hqdefault.jpg`;img.onerror=null;};
+  img.src=`https://img.youtube.com/vi/${currentVideoId}/maxresdefault.jpg`;
+  d.style.display='flex';
+}
+function hidePauseThumb(){
+  const d=document.getElementById('pause-thumb');
+  if(d)d.style.display='none';
+}
 // v39: track play state on hide; resume + repaint on show
 // Browser auto-pauses the YT iframe when hidden — we restore it silently so the room is unaffected.
 document.addEventListener('visibilitychange',()=>{
@@ -1687,6 +1711,7 @@ function loadYTAPI(){
   });
 }
 function createPlayer(videoId,startTime){
+  currentVideoId=videoId; // track for pause thumbnail
   return new Promise(res=>{
     document.getElementById('yt-player').innerHTML='';
     isSyncing=true; // prevent onPlayerState from emitting sync-events while loading
@@ -1696,6 +1721,7 @@ function createPlayer(videoId,startTime){
       events:{
         onReady:e=>{
           if(startTime>1)e.target.seekTo(startTime,true);
+          hidePauseThumb(); // clear any stale thumbnail from previous video
           // FIX 3: explicitly pin GPU layer on the newly-created iframe element
           setTimeout(pinIframeGPULayer,200);
           // Release isSyncing after a short settle — YT iframe fires state events during init
@@ -1743,7 +1769,7 @@ function onPlayerState(ev){
       lastLocalSyncAt=Date.now(); // protect from heartbeat snap-back
     }
     // v22 Fix #9: clear pause banner when local user plays
-    clearPauseBanner();
+    clearPauseBanner();hidePauseThumb();
   }else if(ev.data===YT.PlayerState.PAUSED){
     // v39: browser auto-pauses the YT iframe when the window is minimized or tab is hidden.
     // Don't broadcast this as a user-intent pause — it would pause everyone else in the room.
@@ -1757,6 +1783,7 @@ function onPlayerState(ev){
     _startPausePoll(); // start watching for seeks while paused
     // v22 Fix #9: show persistent pause banner for local user
     showPauseBanner(myUsername);
+    showPauseThumb();
   }
 }
 function extractVid(url){const m=(url||'').match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/);return m?m[1]:null;}
@@ -1791,8 +1818,8 @@ function playPause(){
   if(socket&&roomCode){socket.emit('sync-event',{type:playing?'pause':'play',timestamp:t,sentAt:Date.now()});}
   lastLocalSyncAt=Date.now(); // protect from heartbeat snap-back
   isSyncing=true;
-  if(playing){player.pauseVideo();setTimeout(forceRepaint,150);setTimeout(forceRepaint,500);}
-  else{player.playVideo();setTimeout(forceRepaint,100);setTimeout(forceRepaint,400);}
+  if(playing){player.pauseVideo();showPauseThumb();setTimeout(forceRepaint,150);setTimeout(forceRepaint,500);}
+  else{player.playVideo();hidePauseThumb();setTimeout(forceRepaint,100);setTimeout(forceRepaint,400);}
   setTimeout(()=>{isSyncing=false;},800);
   // v36b: extra repaint every 3 pause/play cycles to combat GPU layer staling
   if(++_ppCycles%3===0)setTimeout(forceRepaint,600);
@@ -1816,9 +1843,11 @@ function doSyncPlay(){
   // v29: match host play state — play if host is playing, stay paused if host is paused
   if(latestHostPlaying){
     player.playVideo(); // safe: this IS a user gesture (button click)
+    hidePauseThumb();
     toast('✓ Playing in sync with host!');
   }else{
     player.pauseVideo();
+    showPauseThumb();
     toast('✓ Synced to host position!');
   }
   guestHasInteracted=true; // unlock heartbeat-driven sync for future drift corrections
@@ -2518,6 +2547,7 @@ function initSocket(){
         setTimeout(()=>{try{player.pauseVideo();}catch(e){}},300);
         setTimeout(()=>{try{player.pauseVideo();}catch(e){}},800);
         setTimeout(()=>{isSyncing=false;},1500);
+        showPauseThumb();
       }
     }else{
       // No video loaded yet — show sync-prompt so guest can pull host's state on tap
@@ -2591,7 +2621,7 @@ function initSocket(){
         // up to 1.2s to render the new frame after seekTo+play, so repaint at 700ms covers it
         setTimeout(forceRepaint,700);
         if(username)showChatNotif(`▶ ${username} played`);
-        clearPauseBanner();
+        clearPauseBanner();hidePauseThumb();
       }
       if(type==='pause'){
         // v39: triple-pause pattern — YT player in BUFFERING state ignores a single pauseVideo();
@@ -2606,6 +2636,7 @@ function initSocket(){
         setTimeout(forceRepaint,150);setTimeout(forceRepaint,500);
         setTimeout(forceRepaint,800);setTimeout(forceRepaint,1200);
         if(username){showChatNotif(`⏸ ${username} paused`);showPauseBanner(username);}
+        showPauseThumb();
       }
       flashSync();
       // v39: extend isSyncing to 1500ms — matches triple-pause window so onPlayerState(PLAYING)
@@ -2626,8 +2657,8 @@ function initSocket(){
     // v36: raised from 0.5s→1.5s — reduces micro-corrections on mobile with buffering delays
     if(Math.abs(player.getCurrentTime()-timestamp)>1.5){isSyncing=true;player.seekTo(timestamp,true);flashSync();setTimeout(()=>{isSyncing=false;},400);}
     const myPlay=player.getPlayerState()===YT.PlayerState.PLAYING;
-    if(isPlaying&&!myPlay&&guestHasInteracted){isSyncing=true;player.playVideo();setTimeout(forceRepaint,100);setTimeout(()=>{isSyncing=false;},400);}
-    else if(!isPlaying&&myPlay){isSyncing=true;player.pauseVideo();setTimeout(()=>{isSyncing=false;},400);}
+    if(isPlaying&&!myPlay&&guestHasInteracted){isSyncing=true;player.playVideo();hidePauseThumb();setTimeout(forceRepaint,100);setTimeout(()=>{isSyncing=false;},400);}
+    else if(!isPlaying&&myPlay){isSyncing=true;player.pauseVideo();showPauseThumb();setTimeout(()=>{isSyncing=false;},400);}
   });
   socket.on('mention',({fromName,channel})=>{
     // Only shown to the target (server only emits to target socket)
