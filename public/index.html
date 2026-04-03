@@ -273,7 +273,7 @@ button{
 /* Player */
 .player-wrap{flex:1;min-height:0;display:flex;flex-direction:column;}
 .player-box{
-  width:100%;height:100%;border-radius:var(--r);overflow:hidden;background:#000;
+  width:100%;height:100%;border-radius:var(--r);background:#000;
   border:1px solid var(--border);position:relative;
   box-shadow:0 2px 0 rgba(225,193,121,.06),0 14px 44px rgba(0,0,0,.6);
   transition:box-shadow .4s;
@@ -283,7 +283,7 @@ button{
   /* Fix 3: pin to GPU layer permanently — prevents compositor GC that causes black screen */
   transform:translate3d(0,0,0);will-change:transform;
   -webkit-backface-visibility:hidden;backface-visibility:hidden;
-  pointer-events:auto;}
+  pointer-events:auto;border-radius:var(--r);}
 .emoji-float{position:absolute;font-size:2.6rem;pointer-events:none;z-index:50;user-select:none;
   filter:drop-shadow(0 3px 9px rgba(0,0,0,.6));animation:floatUp 2.6s cubic-bezier(.22,1,.36,1) forwards;}
 @keyframes floatUp{0%{opacity:0;transform:translateY(0)scale(.3)}14%{opacity:1;transform:translateY(-18px)scale(1.25)}50%{opacity:1;transform:translateY(-66px)scale(1)}100%{opacity:0;transform:translateY(-145px)scale(.8)}}
