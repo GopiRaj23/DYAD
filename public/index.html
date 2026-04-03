@@ -2391,9 +2391,13 @@ function checkLobbyMinPlayers(){
   const waitMsg=document.getElementById('wait-msg');
   if(share)share.style.display=enough?'none':'block';
   if(startBtn&&waitMsg){
-    if(enough){
+    if(enough&&isHost){
+      // Only the host may start the game — guests see "waiting" instead
       startBtn.classList.remove('hidden');
       waitMsg.classList.add('hidden');
+    }else if(enough&&!isHost){
+      startBtn.classList.add('hidden');
+      waitMsg.classList.remove('hidden');
     }else{
       startBtn.classList.add('hidden');
       waitMsg.classList.add('hidden');
