@@ -965,7 +965,7 @@ button{
     </div>
   </div>
   <p style="text-align:center;margin-top:1.5rem;font-size:.72rem;color:#566870">
-    By using DYAD you agree to our <a href="/legal.html" target="_blank" style="color:#e1c179">Privacy Policy &amp; Terms</a> · Beta v39
+    By using DYAD you agree to our <a href="/legal.html" target="_blank" style="color:#e1c179">Privacy Policy &amp; Terms</a>
   </p>
 </div>
 
@@ -1692,7 +1692,7 @@ function createPlayer(videoId,startTime){
     isSyncing=true; // prevent onPlayerState from emitting sync-events while loading
     player=new YT.Player('yt-player',{
       videoId,
-      playerVars:{autoplay:0,start:Math.floor(startTime||0),rel:0,modestbranding:1,playsinline:1},
+      playerVars:{autoplay:0,start:Math.floor(startTime||0),rel:0,controls:1,playsinline:1},
       events:{
         onReady:e=>{
           if(startTime>1)e.target.seekTo(startTime,true);
