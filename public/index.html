@@ -870,6 +870,34 @@ button{
 /* Role strip removed — role now shows in chat-header-right */
 
 /* ── v32: FEEDBACK BUTTON & MODAL ───────────────────────────────────────── */
+/* ══ ONBOARDING TOUR ══ */
+#tour-backdrop{position:fixed;inset:0;z-index:10000;pointer-events:none;}
+#tour-backdrop.active{pointer-events:all;}
+#tour-spotlight{
+  position:fixed;z-index:10001;border-radius:10px;
+  box-shadow:0 0 0 9999px rgba(0,0,0,.72);
+  pointer-events:none;transition:all .35s cubic-bezier(.4,0,.2,1);
+}
+#tour-tip{
+  position:fixed;z-index:10002;
+  background:var(--surface);border:1px solid var(--border-hi);
+  border-radius:var(--r);padding:1rem 1.1rem 1rem;
+  max-width:260px;min-width:200px;
+  box-shadow:0 8px 32px rgba(0,0,0,.5);
+  transition:all .35s cubic-bezier(.4,0,.2,1);
+}
+#tour-tip-title{font-size:.82rem;font-weight:800;color:var(--gold);margin-bottom:.35rem;letter-spacing:.02em;}
+#tour-tip-body{font-size:.73rem;color:var(--text-dim);line-height:1.55;margin-bottom:.85rem;}
+.tour-tip-arrow{position:absolute;width:10px;height:10px;background:var(--surface);border:1px solid var(--border-hi);transform:rotate(45deg);}
+#tour-tip-footer{display:flex;align-items:center;justify-content:space-between;gap:.5rem;}
+#tour-step-dots{display:flex;gap:4px;align-items:center;}
+.tour-dot{width:5px;height:5px;border-radius:50%;background:var(--border-hi);transition:background .2s;}
+.tour-dot.active{background:var(--gold);width:14px;border-radius:3px;}
+#tour-skip{font-size:.65rem;color:var(--text-faint);background:none;border:none;cursor:pointer;padding:0;letter-spacing:.04em;}
+#tour-skip:hover{color:var(--text-dim);}
+#tour-next{background:linear-gradient(135deg,var(--gold),var(--gold-deep));color:var(--bg-deep);
+  font-size:.68rem;font-weight:800;border:none;border-radius:var(--r-sm);
+  padding:.42rem 1rem;cursor:pointer;letter-spacing:.06em;}
 #feedback-btn{position:fixed;z-index:9000;background:var(--surface2);border:1px solid var(--border-hi);color:var(--text-dim);font-size:.62rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;border-radius:var(--r-sm);padding:.42rem .9rem;cursor:pointer;transition:all .2s;opacity:.7;}
 #feedback-btn:hover{opacity:1;background:var(--teal);color:var(--text);}
 /* v36f: absolute bottom-right corner — sits in dock strip's far-right empty space, no overlap */
@@ -2284,6 +2312,8 @@ function showRoom(){
   document.getElementById('quick-join').classList.add('hidden');
   document.getElementById('page-room').classList.remove('hidden');
   updateFeedbackPos(); // v32: reposition feedback btn to bottom-right
+  // Start onboarding tour for first-time users (400ms delay lets the room render fully)
+  setTimeout(()=>{if(window._startTour)window._startTour();},400);
 }
 // v27: Exit room — disconnect and return to landing
 function leaveRoom(){
@@ -3067,5 +3097,146 @@ updateFeedbackPos();
     </div>
   </div>
 </div>
+
+<!-- ══ ONBOARDING TOUR ══ -->
+<div id="tour-backdrop"></div>
+<div id="tour-spotlight"></div>
+<div id="tour-tip">
+  <div id="tour-tip-title"></div>
+  <div id="tour-tip-body"></div>
+  <div id="tour-tip-footer">
+    <div id="tour-step-dots"></div>
+    <button id="tour-skip" onclick="tourSkip()">Skip tour</button>
+    <button id="tour-next" onclick="tourNext()">Next →</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  const STEPS=[
+    {
+      el:'code-chip',
+      title:'🔗 Invite your friends',
+      body:'This is the most important button — copy the room link and send it to anyone you want to watch with. They join instantly, no sign-up needed.',
+      arrow:'bottom'
+    },
+    {
+      el:'rb-watch',
+      title:'📺 Watch Tab',
+      body:'This is the Watch tab. Paste any YouTube link in the bar to the right and hit Load. Play, pause, and seek — it syncs for everyone in the room.',
+      arrow:'bottom'
+    },
+    {
+      el:'yt-tray',
+      title:'▶ Load a video',
+      body:'Paste a YouTube URL here and hit Load. The video loads for everyone in the room at the same time.',
+      arrow:'bottom'
+    },
+    {
+      el:'rb-ink',
+      title:'🎨 InkMind',
+      body:'Switch here for the drawing game. One person draws a word, everyone else guesses. The faster you guess, the more points you score.',
+      arrow:'bottom'
+    },
+    {
+      el:'mic-btn',
+      title:'🎙️ Voice Chat',
+      body:'Tap to join voice chat with everyone in the room. It\'s peer-to-peer — no audio ever passes through our servers.',
+      arrow:'top'
+    },
+    {
+      el:'chat-watch',
+      title:'💬 Watch Chat',
+      body:'Chat with your room while watching. Type a message or tap an emoji to react. You can also @mention someone.',
+      arrow:'left'
+    },
+    {
+      el:'exit-room-btn',
+      title:'✕ Exit',
+      body:'When you\'re done, hit Exit to leave the room. The room stays alive for others until everyone leaves.',
+      arrow:'bottom'
+    }
+  ];
+
+  let cur=0;
+  const backdrop=document.getElementById('tour-backdrop');
+  const spotlight=document.getElementById('tour-spotlight');
+  const tip=document.getElementById('tour-tip');
+
+  function startTour(){
+    if(localStorage.getItem('dyad_tour_done')==='1')return;
+    cur=0;
+    backdrop.classList.add('active');
+    backdrop.addEventListener('click',tourNext);
+    showStep(cur);
+  }
+
+  function showStep(i){
+    const s=STEPS[i];
+    const el=document.getElementById(s.el);
+    if(!el){tourNext();return;}
+    const r=el.getBoundingClientRect();
+    const pad=8;
+    // Position spotlight
+    spotlight.style.left=(r.left-pad)+'px';
+    spotlight.style.top=(r.top-pad)+'px';
+    spotlight.style.width=(r.width+pad*2)+'px';
+    spotlight.style.height=(r.height+pad*2)+'px';
+    // Content
+    document.getElementById('tour-tip-title').textContent=s.title;
+    document.getElementById('tour-tip-body').textContent=s.body;
+    // Dots
+    const dots=document.getElementById('tour-step-dots');
+    dots.innerHTML=STEPS.map((_,idx)=>`<div class="tour-dot${idx===i?' active':''}"></div>`).join('');
+    // Next button label
+    document.getElementById('tour-next').textContent=i===STEPS.length-1?'Got it ✓':'Next →';
+    // Position tip
+    positionTip(r,s.arrow,pad);
+    tip.style.display='block';
+    spotlight.style.display='block';
+  }
+
+  function positionTip(r,arrow,pad){
+    const tw=268,th=160,margin=12;
+    const vw=window.innerWidth,vh=window.innerHeight;
+    let left,top;
+    // Try below first, then above, then right, then left
+    if(arrow==='bottom'&&r.top-th-margin>0){
+      top=r.top-th-margin;
+      left=Math.min(Math.max(margin,r.left+r.width/2-tw/2),vw-tw-margin);
+    }else if(r.bottom+th+margin<vh){
+      top=r.bottom+pad+margin;
+      left=Math.min(Math.max(margin,r.left+r.width/2-tw/2),vw-tw-margin);
+    }else if(r.left-tw-margin>0){
+      top=Math.min(Math.max(margin,r.top+r.height/2-th/2),vh-th-margin);
+      left=r.left-tw-margin;
+    }else{
+      top=Math.min(Math.max(margin,r.top+r.height/2-th/2),vh-th-margin);
+      left=r.right+margin;
+    }
+    tip.style.left=Math.max(margin,Math.min(left,vw-tw-margin))+'px';
+    tip.style.top=Math.max(margin,Math.min(top,vh-th-margin))+'px';
+    tip.style.width=tw+'px';
+  }
+
+  function tourNext(){
+    cur++;
+    if(cur>=STEPS.length){tourSkip();return;}
+    showStep(cur);
+  }
+  function tourSkip(){
+    backdrop.classList.remove('active');
+    backdrop.removeEventListener('click',tourNext);
+    spotlight.style.display='none';
+    tip.style.display='none';
+    localStorage.setItem('dyad_tour_done','1');
+  }
+
+  // Expose so HTML buttons can call them
+  window.tourNext=tourNext;
+  window.tourSkip=tourSkip;
+  window._startTour=startTour; // called from showRoom()
+})();
+</script>
 </body>
 </html>
