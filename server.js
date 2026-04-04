@@ -747,6 +747,6 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log('\n  🎨  DYAD / InkMind is running!');
+  console.log('\n  🎨  DYAAD / InkMind is running!');
   console.log(`  👉  http://localhost:${PORT}\n`);
 });

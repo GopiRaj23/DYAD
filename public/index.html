@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <meta name="theme-color" content="#080F10"/>
-<title>DYAD — Shared Moments</title>
+<title>DYAAD — Shared Moments</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant:wght@400;600;700&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet"/>
@@ -66,20 +66,102 @@ button{
   align-items:center;justify-content:center;
   padding:1.5rem 1.2rem calc(2rem + env(safe-area-inset-bottom,0px));position:relative;
 }
-.bg-layer{position:fixed;border-radius:50%;pointer-events:none;filter:blur(90px);}
-.bg-1{width:520px;height:520px;background:radial-gradient(circle,rgba(16,63,71,.48),transparent 70%);top:-240px;right:-140px;animation:bgDrift 18s ease-in-out infinite;}
-.bg-2{width:440px;height:440px;background:radial-gradient(circle,rgba(26,85,97,.3),transparent 70%);bottom:-160px;left:-110px;animation:bgDrift 22s ease-in-out infinite reverse;animation-delay:-9s;}
-.bg-3{width:280px;height:280px;background:radial-gradient(circle,rgba(225,193,121,.06),transparent 70%);top:38%;left:34%;animation:bgDrift 28s ease-in-out infinite;animation-delay:-14s;}
-@keyframes bgDrift{0%,100%{transform:translate(0,0)scale(1)}33%{transform:translate(24px,-30px)scale(1.04)}66%{transform:translate(-14px,18px)scale(.97)}}
+#space-canvas{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:0;}
 .logo-block{text-align:center;margin-bottom:1.6rem;animation:riseIn .6s cubic-bezier(.22,1,.36,1) both;}
-.logo-mark{display:inline-flex;align-items:center;justify-content:center;width:60px;height:60px;border-radius:17px;margin-bottom:.8rem;background:linear-gradient(145deg,var(--surface2),var(--teal));border:1px solid var(--border-hi);position:relative;box-shadow:0 0 0 1px var(--border),0 8px 30px rgba(0,0,0,.5),inset 0 1px 0 rgba(225,193,121,.12);}
-.logo-mark::before,.logo-mark::after{content:'';position:absolute;width:18px;height:18px;border-radius:50%;border:2.5px solid var(--gold);}
-.logo-mark::before{left:12px;top:50%;transform:translateY(-50%);}
-.logo-mark::after{right:12px;top:50%;transform:translateY(-50%);opacity:.5;}
-.logo-shine{position:absolute;inset:0;border-radius:inherit;background:linear-gradient(110deg,transparent 35%,rgba(225,193,121,.18) 50%,transparent 65%);background-size:220% 100%;animation:goldSweep 3.5s ease-in-out infinite;}
-@keyframes goldSweep{0%{background-position:220% 0}100%{background-position:-220% 0}}
-.brand-name{font-family:var(--font-brand);font-size:clamp(2.6rem,8vw,4.2rem);font-weight:700;letter-spacing:.26em;color:var(--gold);line-height:1;}
-.tagline{font-size:.68rem;letter-spacing:.28em;text-transform:uppercase;color:var(--text-dim);margin-top:.4rem;}
+/* ── Logo animation (10s cycle) ── */
+.logo-anim{position:relative;display:flex;align-items:center;justify-content:center;height:100px;margin-bottom:.5rem;}
+
+/* Concentric circles */
+.cc-stage{position:absolute;display:flex;align-items:center;justify-content:center;}
+.cc-ring{position:absolute;border-radius:50%;border:1.5px solid #E1C179;opacity:0;}
+.cc-r1{width:26px;height:26px;animation:ccR1 10s ease-in-out infinite;}
+.cc-r2{width:50px;height:50px;animation:ccR2 10s ease-in-out infinite;}
+.cc-r3{width:74px;height:74px;animation:ccR3 10s ease-in-out infinite;}
+@keyframes ccR1{
+  0%{opacity:0;transform:scale(0);}
+  7%{opacity:1;transform:scale(1);}
+  28%{opacity:1;transform:scale(1);}
+  38%{opacity:0;transform:scale(0.4);}
+  100%{opacity:0;transform:scale(0);}
+}
+@keyframes ccR2{
+  0%,5%{opacity:0;transform:scale(0);}
+  13%{opacity:1;transform:scale(1);}
+  28%{opacity:1;transform:scale(1);}
+  38%{opacity:0;transform:scale(0.4);}
+  100%{opacity:0;transform:scale(0);}
+}
+@keyframes ccR3{
+  0%,10%{opacity:0;transform:scale(0);}
+  20%{opacity:1;transform:scale(1);}
+  28%{opacity:1;transform:scale(1);}
+  38%{opacity:0;transform:scale(0.4);}
+  100%{opacity:0;transform:scale(0);}
+}
+
+/* Infinity — two ovals that expand from center */
+.inf-stage{position:absolute;display:flex;align-items:center;justify-content:center;width:176px;height:70px;}
+.inf-oval{position:absolute;width:80px;height:62px;border-radius:50%;border:2px solid #E1C179;opacity:0;}
+.inf-oval-l{animation:infOvalL 10s ease-in-out infinite;}
+.inf-oval-r{animation:infOvalR 10s ease-in-out infinite;}
+/* Left oval: starts at center (translateX=0, scale=0) → slides left to final pos */
+@keyframes infOvalL{
+  0%,34%{opacity:0;transform:translateX(0) scale(0.1);}
+  48%{opacity:1;transform:translateX(-48px) scale(1);}
+  57%{opacity:1;transform:translateX(-48px) scale(1);}
+  66%{opacity:0;transform:translateX(-48px) scale(1);}
+  100%{opacity:0;transform:translateX(0) scale(0.1);}
+}
+@keyframes infOvalR{
+  0%,34%{opacity:0;transform:translateX(0) scale(0.1);}
+  48%{opacity:1;transform:translateX(48px) scale(1);}
+  57%{opacity:1;transform:translateX(48px) scale(1);}
+  66%{opacity:0;transform:translateX(48px) scale(1);}
+  100%{opacity:0;transform:translateX(0) scale(0.1);}
+}
+/* Spinning arc on each oval */
+.inf-arc{position:absolute;inset:-2px;border-radius:50%;border:2px solid transparent;border-top-color:rgba(255,248,200,0.95);border-right-color:rgba(255,244,180,0.35);animation:spinArc 2s linear infinite;}
+.inf-arc-r{animation-direction:reverse;animation-delay:-.8s;}
+@keyframes spinArc{to{transform:rotate(360deg);}}
+
+/* DYAAD */
+.dyaad-stage{
+  position:absolute;
+  font-family:var(--font-brand);
+  font-size:clamp(2.2rem,6.5vw,3.6rem);
+  font-weight:700;
+  letter-spacing:.26em;
+  background:linear-gradient(90deg,#b8820a 0%,#E1C179 20%,#fff8d0 40%,#fffce8 50%,#fff8d0 60%,#E1C179 80%,#b8820a 100%);
+  background-size:300% 100%;
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+  background-clip:text;
+  opacity:0;
+  animation:dyaadFade 10s ease-in-out infinite, dyaadShimmer 2.2s linear infinite;
+}
+@keyframes dyaadFade{
+  0%,62%{opacity:0;}
+  70%{opacity:1;}
+  88%{opacity:1;}
+  97%{opacity:0;}
+  100%{opacity:0;}
+}
+@keyframes dyaadShimmer{
+  0%{background-position:100% 0;}
+  100%{background-position:-100% 0;}
+}
+.tagline{
+  font-size:.68rem;letter-spacing:.28em;text-transform:uppercase;color:var(--text-dim);margin-top:.4rem;
+  opacity:0;
+  animation:taglineFade 10s ease-in-out infinite;
+}
+@keyframes taglineFade{
+  0%,65%{opacity:0;}
+  73%{opacity:1;}
+  88%{opacity:1;}
+  97%{opacity:0;}
+  100%{opacity:0;}
+}
 .landing-inner{width:100%;max-width:680px;}
 .mode-toggle{display:flex;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:.28rem;gap:.28rem;margin-bottom:.6rem;animation:riseIn .5s cubic-bezier(.22,1,.36,1) both;}
 .mode-btn{flex:1;padding:.56rem .9rem;font-size:.76rem;font-weight:600;letter-spacing:.09em;text-transform:uppercase;border:none;border-radius:var(--r-sm);background:transparent;color:var(--text-dim);cursor:pointer;transition:all .22s;}
@@ -926,7 +1008,7 @@ button{
 
 <!-- ══ QUICK-JOIN (shared-link landing) ══ -->
 <div id="quick-join" class="hidden">
-  <div class="qj-logo">DYAD</div>
+  <div class="qj-logo">DYAAD</div>
   <div class="qj-invite">
     <div class="qj-label">You've been invited</div>
     <div class="qj-code" id="qj-code">——</div>
@@ -974,11 +1056,28 @@ button{
 </div>
 
 <!-- ══ LANDING ══ -->
+<canvas id="space-canvas"></canvas>
 <div id="page-landing">
-  <div class="bg-layer bg-1"></div><div class="bg-layer bg-2"></div><div class="bg-layer bg-3"></div>
   <div class="logo-block">
-    <div class="logo-mark"><div class="logo-shine"></div></div>
-    <div class="brand-name">DYAD</div>
+    <div class="logo-anim" aria-label="DYAAD">
+      <!-- Concentric circles -->
+      <div class="cc-stage">
+        <div class="cc-ring cc-r1"></div>
+        <div class="cc-ring cc-r2"></div>
+        <div class="cc-ring cc-r3"></div>
+      </div>
+      <!-- Infinity two ovals -->
+      <div class="inf-stage">
+        <div class="inf-oval inf-oval-l">
+          <div class="inf-arc"></div>
+        </div>
+        <div class="inf-oval inf-oval-r">
+          <div class="inf-arc inf-arc-r"></div>
+        </div>
+      </div>
+      <!-- DYAAD text -->
+      <div class="dyaad-stage">DYAAD</div>
+    </div>
     <p class="tagline">Shared Moments</p>
   </div>
   <div class="landing-inner">
@@ -1020,7 +1119,7 @@ button{
     <div id="mode-game-btn" style="display:none"></div>
   </div>
   <p style="text-align:center;margin-top:1.5rem;font-size:.72rem;color:#566870">
-    By using DYAD you agree to our <a href="/legal.html" target="_blank" style="color:#e1c179">Privacy Policy &amp; Terms</a>
+    By using DYAAD you agree to our <a href="/legal.html" target="_blank" style="color:#e1c179">Privacy Policy &amp; Terms</a>
   </p>
 </div>
 
@@ -1029,7 +1128,7 @@ button{
   <!-- TOPBAR -->
   <div class="topbar">
     <div class="topbar-left">
-      <div class="topbar-brand">DYAD</div>
+      <div class="topbar-brand">DYAAD</div>
     </div>
     <div class="topbar-right"></div>
   </div>
@@ -3255,6 +3354,77 @@ updateFeedbackPos();
   window.tourSkip=tourSkip;
   window._startTour=startTour; // called from showRoom()
 })();
+</script>
+
+<script>
+/* ══════════════════════════════════════
+   SPACE BACKGROUND — deep-space flythrough
+   Three star layers at different speeds/sizes
+════════════════════════════════════════ */
+(function(){
+  const sc=document.getElementById('space-canvas');
+  if(!sc)return;
+  const ctx=sc.getContext('2d');
+  let W,H;
+  function resize(){W=sc.width=window.innerWidth;H=sc.height=window.innerHeight;}
+  resize();window.addEventListener('resize',resize);
+
+  // Generate stars for 3 layers: [count, speed, minR, maxR, alpha]
+  const LAYERS=[
+    {n:260,spd:0.08,rMin:0.3,rMax:0.9,a:0.55},
+    {n:120,spd:0.20,rMin:0.6,rMax:1.5,a:0.70},
+    {n:40, spd:0.42,rMin:1.0,rMax:2.4,a:0.90}
+  ];
+  const stars=LAYERS.flatMap(({n,spd,rMin,rMax,a})=>
+    Array.from({length:n},()=>({
+      x:Math.random()*3000-500,y:Math.random()*2000-400,
+      r:rMin+Math.random()*(rMax-rMin),
+      spd,a,
+      hue:Math.random()<0.12?200+Math.random()*40:0 // occasional blue-tinted
+    }))
+  );
+
+  // Nebula clouds (static radial gradients placed once)
+  const NEBULAE=[
+    {cx:0.72,cy:0.18,rx:420,ry:320,c:'rgba(16,63,90,0.38)'},
+    {cx:0.18,cy:0.78,rx:360,ry:280,c:'rgba(20,55,80,0.30)'},
+    {cx:0.50,cy:0.50,rx:500,ry:380,c:'rgba(10,40,60,0.18)'},
+    {cx:0.85,cy:0.65,rx:260,ry:200,c:'rgba(60,30,80,0.18)'},
+  ];
+
+  let oy=0; // scroll offset — y direction (moving forward into space)
+  function frame(){
+    oy+=0.25; // slow drift speed
+    ctx.clearRect(0,0,W,H);
+
+    // Deep background
+    const bg=ctx.createLinearGradient(0,0,0,H);
+    bg.addColorStop(0,'#00020a');bg.addColorStop(1,'#010510');
+    ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
+
+    // Nebulae
+    NEBULAE.forEach(({cx,cy,rx,ry,c})=>{
+      const gx=cx*W,gy=cy*H;
+      const g=ctx.createRadialGradient(gx,gy,0,gx,gy,Math.max(rx,ry));
+      g.addColorStop(0,c);g.addColorStop(1,'transparent');
+      ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+    });
+
+    // Stars — each layer scrolls at its own speed; wrap vertically
+    stars.forEach(s=>{
+      const sy=(s.y+oy*s.spd*60)%H;
+      const sx=s.x%W;
+      const hsl=s.hue?`hsla(${s.hue},60%,80%,${s.a})`:`rgba(255,255,255,${s.a})`;
+      ctx.beginPath();
+      ctx.arc((sx+W)%W,(sy+H)%H,s.r,0,Math.PI*2);
+      ctx.fillStyle=hsl;ctx.fill();
+    });
+
+    requestAnimationFrame(frame);
+  }
+  frame();
+})();
+
 </script>
 </body>
 </html>
