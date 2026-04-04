@@ -1141,7 +1141,7 @@ button{
                 <div style="font-size:.6rem;color:var(--text-faint);margin-top:.35rem" id="lobby-waiting">Waiting for players to join…</div>
               </div>
               <button class="ov-btn hidden" id="start-btn" onclick="openGCM()">Start Game</button>
-              <p class="hidden" id="wait-msg" style="font-size:.68rem;color:var(--text-faint)">Waiting for someone to start…</p>
+              <p class="hidden" id="wait-msg" style="font-size:.68rem;color:var(--text-faint)">Ask the host to start the game</p>
             </div>
             <!-- Word choice (drawer) -->
             <div class="sc-overlay hidden" id="ov-choice">
@@ -1355,7 +1355,7 @@ let isHost=false, roomCode=null, myUsername='', roomMode='stream';
 let _watchdogInt=null, _ppCycles=0; // v36b: blackscreen watchdog
 let guestHasInteracted=false, heartbeatInt=null;
 let currentTab='watch', timerTotal=60;
-let gameRounds=1, participantCount=1;
+let gameRounds=1, participantCount=1, gamePlayedOnce=false;
 let participantNames=[]; // tracks all names for dropdown (#12)
 let membersDDOpen=false;
 
@@ -1479,8 +1479,8 @@ function showLB(scores,rounds){
       <span class="lb-pts">${s.score} pts</span>
     </div>`).join('');
   document.getElementById('lb-sub').textContent=`${rounds} round${rounds!==1?'s':''} completed`;
-  // Only the host can start a new game — hide Play Again for guests
-  document.getElementById('lb-overlay').querySelector('.lb-new').style.display=isHost?'':'none';
+  // After the first game everyone can start — hide Play Again only on the very first game for guests
+  document.getElementById('lb-overlay').querySelector('.lb-new').style.display=(isHost||gamePlayedOnce)?'':'none';
   document.getElementById('lb-overlay').classList.add('open');
 }
 function closeLB(){document.getElementById('lb-overlay').classList.remove('open');}
@@ -2451,12 +2451,14 @@ function checkLobbyMinPlayers(){
   const waitMsg=document.getElementById('wait-msg');
   if(share)share.style.display=enough?'none':'block';
   if(startBtn&&waitMsg){
-    if(enough&&isHost){
-      // Only the host may start the game — guests see "waiting" instead
+    if(enough&&(isHost||gamePlayedOnce)){
+      // Host always can start; after first game guests can start too
       startBtn.classList.remove('hidden');
       waitMsg.classList.add('hidden');
     }else if(enough&&!isHost){
+      // First game, guest — prompt them to ask the host
       startBtn.classList.add('hidden');
+      waitMsg.textContent='Ask the host to start the game';
       waitMsg.classList.remove('hidden');
     }else{
       startBtn.classList.add('hidden');
@@ -2866,6 +2868,7 @@ function initSocket(){
   /* ── INKMIND ── */
   socket.on('scribble-started',()=>{
     scribbleActive=true;strokeHistory=[];remoteStrokeHistory=[];
+    gamePlayedOnce=true;
     closeLB();
     document.getElementById('live-score-bar').classList.remove('show');
     sysChat('ink','🎨 InkMind game started!');
