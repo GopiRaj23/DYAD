@@ -979,10 +979,6 @@ button{
     <p class="tagline">Shared Moments</p>
   </div>
   <div class="landing-inner">
-    <div class="mode-toggle">
-      <button class="mode-btn active" id="mode-stream-btn" onclick="setMode('stream')">📺 Co-watch</button>
-      <button class="mode-btn"        id="mode-game-btn"   onclick="setMode('game')">🎨 InkMind</button>
-    </div>
     <div class="username-card">
       <div class="card-label">Your name</div>
       <div class="username-row">
@@ -990,38 +986,28 @@ button{
         <button class="randomize-btn" onclick="randomizeName()">🎲 Random</button>
       </div>
     </div>
-    <div id="stream-opts">
-      <div class="cards-row">
-        <div class="card">
-          <div class="card-label">Start a room</div>
-          <input type="text" id="input-url" placeholder="Paste a YouTube URL…" autocomplete="off"/>
-          <div class="msg-err" id="err-create"></div>
-          <button class="btn-primary" onclick="createRoom()">Create Room</button>
-        </div>
-        <div class="card">
-          <div class="card-label">Join a room</div>
-          <input type="text" id="input-code" class="input-code" placeholder="XXXXXX" maxlength="6" autocomplete="off" autocapitalize="characters"/>
-          <div class="msg-err" id="err-join"></div>
-          <button class="btn-secondary" onclick="joinRoom()">Join Room</button>
-        </div>
+    <div class="cards-row">
+      <div class="card">
+        <div class="card-label">Create a room</div>
+        <input type="text" id="input-url" placeholder="Paste a YouTube URL… (optional)" autocomplete="off"/>
+        <div class="msg-err" id="err-create"></div>
+        <div class="msg-err" id="err-create-game"></div>
+        <button class="btn-primary" onclick="createRoom()">Create Room</button>
+      </div>
+      <div class="card">
+        <div class="card-label">Join a room</div>
+        <input type="text" id="input-code" class="input-code" placeholder="XXXXXX" maxlength="6" autocomplete="off" autocapitalize="characters"/>
+        <input type="hidden" id="input-code-game"/>
+        <div class="msg-err" id="err-join"></div>
+        <div class="msg-err" id="err-join-game"></div>
+        <button class="btn-secondary" onclick="joinRoom()">Join Room</button>
       </div>
     </div>
-    <div id="game-opts" class="hidden">
-      <div class="cards-row">
-        <div class="card">
-          <div class="card-label">Create a game</div>
-          <p style="font-size:.76rem;color:var(--text-dim);margin-bottom:.7rem;line-height:1.5">Create an InkMind room and share the code!</p>
-          <div class="msg-err" id="err-create-game"></div>
-          <button class="btn-primary" onclick="createGameRoom()">Create Game</button>
-        </div>
-        <div class="card">
-          <div class="card-label">Join a game</div>
-          <input type="text" id="input-code-game" class="input-code" placeholder="XXXXXX" maxlength="6" autocomplete="off" autocapitalize="characters"/>
-          <div class="msg-err" id="err-join-game"></div>
-          <button class="btn-secondary" onclick="joinGameRoom()">Join Game</button>
-        </div>
-      </div>
-    </div>
+    <!-- hidden ids kept for JS compatibility -->
+    <div id="stream-opts" style="display:none"></div>
+    <div id="game-opts" style="display:none"></div>
+    <div id="mode-stream-btn" style="display:none"></div>
+    <div id="mode-game-btn" style="display:none"></div>
   </div>
   <p style="text-align:center;margin-top:1.5rem;font-size:.72rem;color:#566870">
     By using DYAD you agree to our <a href="/legal.html" target="_blank" style="color:#e1c179">Privacy Policy &amp; Terms</a>
