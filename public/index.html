@@ -994,13 +994,20 @@ button{
         <div class="msg-err" id="err-create-game"></div>
         <button class="btn-primary" onclick="createRoom()">Create Room</button>
       </div>
-      <div class="card">
+      <div class="card" id="join-card">
         <div class="card-label">Join a room</div>
-        <input type="text" id="input-code" class="input-code" placeholder="XXXXXX" maxlength="6" autocomplete="off" autocapitalize="characters"/>
-        <input type="hidden" id="input-code-game"/>
-        <div class="msg-err" id="err-join"></div>
-        <div class="msg-err" id="err-join-game"></div>
-        <button class="btn-secondary" onclick="joinRoom()">Join Room</button>
+        <!-- Step 1: just the button -->
+        <div id="join-step-1">
+          <button class="btn-secondary" onclick="openJoinInput()">Join Room</button>
+        </div>
+        <!-- Step 2: code input + enter (hidden until Join Room clicked) -->
+        <div id="join-step-2" style="display:none;">
+          <input type="text" id="input-code" class="input-code" placeholder="XXXXXX" maxlength="6" autocomplete="off" autocapitalize="characters" onkeydown="if(event.key==='Enter')joinRoom()"/>
+          <input type="hidden" id="input-code-game"/>
+          <div class="msg-err" id="err-join"></div>
+          <div class="msg-err" id="err-join-game"></div>
+          <button class="btn-primary" onclick="joinRoom()">Enter →</button>
+        </div>
       </div>
     </div>
     <!-- hidden ids kept for JS compatibility -->
@@ -2263,6 +2270,11 @@ async function createRoom(){
   const username=getUN(),videoId=extractVid((document.getElementById('input-url')?.value||'').trim());
   if(!videoId){showErr('err-create',"Invalid YouTube URL.");return;}
   myUsername=username;clearErr('err-create');initSocket();socket.emit('create-room',{videoId,username,mode:'stream'});
+}
+function openJoinInput(){
+  document.getElementById('join-step-1').style.display='none';
+  document.getElementById('join-step-2').style.display='';
+  setTimeout(()=>document.getElementById('input-code').focus(),50);
 }
 function joinRoom(){
   const username=getUN(),code=(document.getElementById('input-code')?.value||'').trim().toUpperCase();
