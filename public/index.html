@@ -311,6 +311,19 @@ button{
 .sync-play-btn:hover{transform:scale(1.07);box-shadow:0 8px 36px rgba(225,193,121,.65);}
 .sync-play-btn:active{transform:scale(.95);}
 
+/* Invite card shown in empty Watch chat until someone joins */
+#invite-card{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.7rem;
+  padding:1.4rem 1rem;margin:.6rem;border-radius:var(--r);
+  background:var(--surface2);border:1px dashed var(--border-hi);text-align:center;}
+#invite-card.hidden{display:none;}
+#invite-card .ic-icon{font-size:1.8rem;line-height:1;}
+#invite-card .ic-title{font-size:.82rem;font-weight:700;color:var(--text);letter-spacing:.02em;}
+#invite-card .ic-sub{font-size:.7rem;color:var(--text-dim);line-height:1.5;max-width:180px;}
+#invite-card .ic-btn{background:linear-gradient(135deg,var(--gold),var(--gold-deep));color:var(--bg-deep);
+  font-size:.72rem;font-weight:800;letter-spacing:.07em;border:none;border-radius:var(--r-sm);
+  padding:.6rem 1.4rem;cursor:pointer;width:100%;transition:transform .12s;}
+#invite-card .ic-btn:hover{transform:translateY(-1px);}
+#invite-card .ic-btn.copied{background:var(--green,#2ecc71);color:#fff;}
 .watch-pending-badge{display:none;position:absolute;top:-3px;right:-3px;width:9px;height:9px;border-radius:50%;background:var(--gold);border:2px solid var(--bg);}
 .watch-pending-badge.show{display:block;}
 
@@ -1128,6 +1141,13 @@ button{
           <span class="unread-star hidden" id="watch-star"></span>
         </div>
         <div class="chat-messages" id="watch-msgs">
+          <!-- Invite card — visible until someone joins, then hidden automatically -->
+          <div id="invite-card">
+            <div class="ic-icon">👥</div>
+            <div class="ic-title">No one here yet</div>
+            <div class="ic-sub">Share your room link to watch together</div>
+            <button class="ic-btn" onclick="copyInviteCard()">🔗 Copy Room Link</button>
+          </div>
           <div class="typing-ind" id="watch-typing">
             <div class="typing-dots"><span></span><span></span><span></span></div>
             <span id="watch-type-name"></span><span>&nbsp;…</span>
@@ -2184,6 +2204,16 @@ function updateTimer(v){
 /* ══════ COPY LINK ══════ */
 function getURL(){return window.location.origin+'/?room='+roomCode;}
 function copyLink(){navigator.clipboard.writeText(getURL()).then(()=>{const btn=document.getElementById('copy-btn');btn.textContent='✓ Copied!';btn.classList.add('copied');setTimeout(()=>{btn.textContent='Copy Link';btn.classList.remove('copied');},2400);});}
+function hideInviteCard(){const c=document.getElementById('invite-card');if(c)c.classList.add('hidden');}
+function copyInviteCard(){
+  navigator.clipboard.writeText(getURL()).then(()=>{
+    const btn=document.querySelector('#invite-card .ic-btn');
+    if(!btn)return;
+    const orig=btn.innerHTML;
+    btn.innerHTML='✓ Copied!';btn.classList.add('copied');
+    setTimeout(()=>{btn.innerHTML=orig;btn.classList.remove('copied');},2500);
+  });
+}
 function copyChip(){
   navigator.clipboard.writeText(getURL()).then(()=>{
     const c=document.getElementById('code-chip');
@@ -2476,6 +2506,7 @@ function initSocket(){
   socket.on('guest-joined',({guestCount:gc,guestName,participants})=>{
     participantCount=gc+1;
     if(participants)setMembers(participants);
+    hideInviteCard(); // someone joined — invite card no longer needed
     showChatNotif(`👋 ${guestName} joined`);
     sysChat('watch',`👋 ${guestName} joined`);
   });
@@ -2487,6 +2518,7 @@ function initSocket(){
     showRoom();setRole('guest');setUserBadge(myUsername);
     setTopCode(roomCode);
     if(participants)setMembers(participants);
+    hideInviteCard(); // guests don't need to invite — hide the card
     sysChat('watch',`Joined ${hostName}'s room`);
     // Gated start button
     document.getElementById('start-btn').classList.add('hidden');
