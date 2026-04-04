@@ -2308,7 +2308,16 @@ function leaveRoom(){
   document.getElementById('page-landing').classList.remove('hidden');
   updateFeedbackPos(); // v32: reposition feedback btn back to bottom-center
 }
-function setTopCode(c){roomCode=c||roomCode;document.getElementById('topbar-code').textContent=c||roomCode;document.getElementById('code-chip').classList.remove('hidden');}
+function setTopCode(c){
+  roomCode=c||roomCode;
+  document.getElementById('topbar-code').textContent=c||roomCode;
+  const chip=document.getElementById('code-chip');
+  chip.classList.remove('hidden');
+  // Force reflow so the shimmer animation restarts fresh for both host and guest
+  chip.style.animation='none';
+  void chip.offsetWidth;
+  chip.style.animation='';
+}
 // #1: username shown in chat header, not topbar
 function setUserBadge(name){
   myUsername=name||myUsername;
