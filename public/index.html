@@ -305,6 +305,9 @@ button{
 .no-video{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:.8rem;text-align:center;padding:1.5rem;}
 .no-video h3{font-family:var(--font-brand);font-size:1.4rem;color:var(--gold);font-weight:600;}
 .no-video p{font-size:.76rem;color:var(--text-dim);max-width:240px;line-height:1.55;}
+.no-video-load-row{display:flex;align-items:center;gap:.5rem;width:100%;max-width:420px;}
+.no-video-load-row input{flex:1;margin-bottom:0;padding:.45rem .75rem;font-size:.82rem;height:36px;}
+.no-video-load-row .yt-load{flex-shrink:0;padding:.45rem 1rem;font-size:.76rem;}
 /* #7 Sync-now overlay for guests joining a live video */
 .sync-prompt{
   position:absolute;inset:0;z-index:20;
@@ -994,13 +997,20 @@ button{
         <div class="msg-err" id="err-create-game"></div>
         <button class="btn-primary" onclick="createRoom()">Create Room</button>
       </div>
-      <div class="card">
+      <div class="card" id="join-card">
         <div class="card-label">Join a room</div>
-        <input type="text" id="input-code" class="input-code" placeholder="XXXXXX" maxlength="6" autocomplete="off" autocapitalize="characters"/>
-        <input type="hidden" id="input-code-game"/>
-        <div class="msg-err" id="err-join"></div>
-        <div class="msg-err" id="err-join-game"></div>
-        <button class="btn-secondary" onclick="joinRoom()">Join Room</button>
+        <!-- Step 1: just the button -->
+        <div id="join-step-1">
+          <button class="btn-secondary" onclick="openJoinInput()">Join Room</button>
+        </div>
+        <!-- Step 2: code input + enter (hidden until Join Room clicked) -->
+        <div id="join-step-2" style="display:none;">
+          <input type="text" id="input-code" class="input-code" placeholder="XXXXXX" maxlength="6" autocomplete="off" autocapitalize="characters" onkeydown="if(event.key==='Enter')joinRoom()"/>
+          <input type="hidden" id="input-code-game"/>
+          <div class="msg-err" id="err-join"></div>
+          <div class="msg-err" id="err-join-game"></div>
+          <button class="btn-primary" onclick="joinRoom()">Enter →</button>
+        </div>
       </div>
     </div>
     <!-- hidden ids kept for JS compatibility -->
@@ -1021,30 +1031,22 @@ button{
     <div class="topbar-left">
       <div class="topbar-brand">DYAD</div>
     </div>
-    <div class="topbar-right">
-      <div class="code-chip hidden" id="code-chip" onclick="copyChip()" title="Copy room invite link">
-        🔗 Copy Room Link&nbsp;<strong id="topbar-code">——</strong>
-      </div>
-      <button class="exit-room-btn" id="exit-room-btn" onclick="leaveRoom()" title="Leave room">✕ Exit</button>
-    </div>
+    <div class="topbar-right"></div>
   </div>
 
   <!-- RIBBON -->
   <div class="mode-ribbon">
     <button class="ribbon-btn" id="rb-watch" onclick="ribbonWatch()">📺 Watch</button>
     <div style="width:1px;height:22px;background:var(--border);flex-shrink:0;"></div>
-    <div class="yt-tray" id="yt-tray">
-      <input type="text" id="yt-tray-input" placeholder="Paste YouTube URL…" autocomplete="off"/>
-      <button class="yt-load" onclick="loadFromTray()">▶ Load</button>
-    </div>
     <button class="ribbon-btn" id="rb-ink" onclick="ribbonInkMind()">🎨 InkMind</button>
     <!-- Mobile chat button -->
     <button class="ribbon-chat-btn" id="rb-chat" onclick="toggleMobileChat()">💬 Chat</button>
-    <!-- v37: Next-video URL moved to right corner of ribbon -->
-    <div class="dock-next" id="dock-next">
-      <input type="text" id="next-url" placeholder="YouTube URL…" autocomplete="off"/>
-      <button class="load-btn" id="load-btn" onclick="loadNextVideo()">Load</button>
+    <div style="flex:1;"></div>
+    <button class="exit-room-btn" id="change-video-btn" onclick="showLoadScreen()" title="Load a new video">📺 Change Video</button>
+    <div class="code-chip hidden" id="code-chip" onclick="copyChip()" title="Copy room invite link">
+      🔗 Copy Room Link&nbsp;<strong id="topbar-code">——</strong>
     </div>
+    <button class="exit-room-btn" id="exit-room-btn" onclick="leaveRoom()" title="Leave room">✕ Exit</button>
   </div>
 
   <!-- ROOM BODY -->
@@ -1057,8 +1059,11 @@ button{
           <div class="player-box" id="player-box">
             <div id="yt-player"></div>
             <div class="no-video" id="no-video">
-              <h3>No video yet</h3>
-              <p>Use the Watch tab above to load a YouTube video.</p>
+              <h3>Paste a YouTube URL</h3>
+              <div class="no-video-load-row" id="no-video-load-row">
+                <input type="text" id="no-video-url" placeholder="https://youtube.com/watch?v=…" autocomplete="off"/>
+                <button class="yt-load" onclick="loadFromNoVideo()">▶ Load</button>
+              </div>
             </div>
             <!-- #7 Sync prompt for guests joining a live video -->
             <div class="sync-prompt" id="sync-prompt">
@@ -1486,23 +1491,15 @@ function ribbonWatch(){
     return;
   }
   if(roomMode==='game' && !ytLoaded){
-    // v29: Only the host gets the URL tray in game mode — guests just see watch tab with sync prompt
     if(!isHost){
-      document.getElementById('yt-tray').classList.remove('open');
       switchTab('watch');
-      if(!ytLoaded){const sp=document.getElementById('sync-prompt');if(sp)sp.classList.add('show');}
+      const sp=document.getElementById('sync-prompt');if(sp)sp.classList.add('show');
       return;
     }
-    const tray=document.getElementById('yt-tray');
-    tray.classList.toggle('open');
-    if(tray.classList.contains('open'))setTimeout(()=>document.getElementById('yt-tray-input').focus(),60);
-    return;
   }
-  document.getElementById('yt-tray').classList.remove('open');
   switchTab('watch');
 }
 function ribbonInkMind(){
-  document.getElementById('yt-tray').classList.remove('open');
   switchTab('ink');
 }
 async function loadPendingVideo(){
@@ -1519,17 +1516,31 @@ async function loadPendingVideo(){
   toast('✓ Synced to video!');
 }
 async function loadFromTray(){
-  const url=document.getElementById('yt-tray-input').value.trim();
-  const vid=extractVid(url);
-  if(!vid){document.getElementById('yt-tray-input').style.borderColor='var(--red)';setTimeout(()=>document.getElementById('yt-tray-input').style.borderColor='',1400);return;}
-  document.getElementById('yt-tray').classList.remove('open');
+  loadFromNoVideo();
+}
+function showLoadScreen(){
+  stopHeartbeat();
+  if(player){try{player.stopVideo();}catch(e){}player=null;}
+  document.getElementById('yt-player').innerHTML='';
+  document.getElementById('yt-player').style.display='none';
+  ytLoaded=false;
+  const nv=document.getElementById('no-video');if(nv)nv.style.display='flex';
+  const lr=document.getElementById('no-video-load-row');if(lr)lr.style.display='flex';
+  const inp=document.getElementById('no-video-url');if(inp){inp.value='';setTimeout(()=>inp.focus(),60);}
+  switchTab('watch');
+}
+async function loadFromNoVideo(){
+  const inp=document.getElementById('no-video-url');
+  const vid=extractVid((inp?.value||'').trim());
+  if(!vid){if(inp){inp.style.borderColor='var(--red)';setTimeout(()=>inp.style.borderColor='',1400);}return;}
   document.getElementById('no-video').style.display='none';
+  document.getElementById('yt-player').style.display='';
   ytLoaded=true;
   if(!window.YT||!window.YT.Player)await loadYTAPI();
   await createPlayer(vid,0);
   if(isHost){socket.emit('change-video',{videoId:vid});startHeartbeat();}
   switchTab('watch');
-  document.getElementById('yt-tray-input').value='';
+  if(inp)inp.value='';
 }
 
 // v35: adjustMobileLayout() retired — CSS aspect-ratio:16/9 on .scribble-wrap
@@ -1560,7 +1571,6 @@ function switchTab(tab){
   const inInk=tab==='ink';
   
   document.getElementById('dock-emojis').style.display=inInk?'none':'flex';
-  document.getElementById('dock-next').style.display=inInk?'none':'flex';
   // Toolbar
   document.getElementById('canvas-toolbar').style.display=(inInk&&scribbleActive&&isDrawer)?'flex':'none';
   if(inInk){
@@ -1613,7 +1623,7 @@ window.addEventListener('DOMContentLoaded',()=>{
   if(icg){icg.addEventListener('keydown',e=>{if(e.key==='Enter')joinGameRoom();});}
 
   // Room key bindings
-  document.getElementById('yt-tray-input').addEventListener('keydown',e=>{if(e.key==='Enter')loadFromTray();if(e.key==='Escape')document.getElementById('yt-tray').classList.remove('open');});
+  document.getElementById('no-video-url').addEventListener('keydown',e=>{if(e.key==='Enter')loadFromNoVideo();});
   document.getElementById('next-url').addEventListener('keydown',e=>{if(e.key==='Enter')loadNextVideo();});
   document.getElementById('watch-input').addEventListener('keydown',e=>{if(e.key==='Enter')sendChat('watch');});
   document.getElementById('ink-input').addEventListener('keydown',e=>{if(e.key==='Enter')sendChat('ink');});
@@ -1637,7 +1647,6 @@ window.addEventListener('DOMContentLoaded',()=>{
     if(e.code==='Space'&&currentTab==='watch'){e.preventDefault();playPause();}
     if((e.ctrlKey||e.metaKey)&&e.key==='z'){e.preventDefault();if(currentTab==='ink'&&isDrawer)undoStroke();}
     if(e.key==='Escape'){
-      document.getElementById('yt-tray').classList.remove('open');
       if(mobileChatOpen)closeMobileChat();
     }
   });
@@ -1811,6 +1820,19 @@ function onPlayerState(ev){
     _startPausePoll(); // start watching for seeks while paused
     // v22 Fix #9: show persistent pause banner for local user
     showPauseBanner(myUsername);
+  }else if(ev.data===YT.PlayerState.ENDED){
+    // Video finished — return to URL input screen
+    ytLoaded=false;
+    stopHeartbeat();
+    document.getElementById('yt-player').innerHTML='';
+    document.getElementById('yt-player').style.display='none';
+    player=null;
+    const nv=document.getElementById('no-video');
+    if(nv){nv.style.display='flex';}
+    const inp=document.getElementById('no-video-url');
+    if(inp){inp.value='';setTimeout(()=>inp.focus(),60);}
+    const lr=document.getElementById('no-video-load-row');
+    if(lr)lr.style.display=isHost?'flex':'none';
   }
 }
 function extractVid(url){const m=(url||'').match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/);return m?m[1]:null;}
@@ -2260,9 +2282,13 @@ function copyChip(){
 /* ══════ CREATE / JOIN ══════ */
 function getUN(){const el=document.getElementById('input-username');let v=(el?.value||'').trim();if(!v){v=genName();if(el)el.value=v;}return v;}
 async function createRoom(){
-  const username=getUN(),videoId=extractVid((document.getElementById('input-url')?.value||'').trim());
-  if(!videoId){showErr('err-create',"Invalid YouTube URL.");return;}
+  const username=getUN(),videoId=extractVid((document.getElementById('input-url')?.value||'').trim())||null;
   myUsername=username;clearErr('err-create');initSocket();socket.emit('create-room',{videoId,username,mode:'stream'});
+}
+function openJoinInput(){
+  document.getElementById('join-step-1').style.display='none';
+  document.getElementById('join-step-2').style.display='';
+  setTimeout(()=>document.getElementById('input-code').focus(),50);
 }
 function joinRoom(){
   const username=getUN(),code=(document.getElementById('input-code')?.value||'').trim().toUpperCase();
@@ -2290,7 +2316,6 @@ function doQuickJoin(){
   // Show room but with no-video until synced; hide dock URL input so guest
   // isn't asked to paste a video URL — switchTab() in room-joined restores it correctly
   document.getElementById('no-video').style.display='flex';
-  document.getElementById('dock-next').style.display='none';
   setTopCode(code);setUserBadge(username);
   initSocket();
   socket.emit('join-room',{roomCode:code,username});
@@ -2350,14 +2375,15 @@ function setRole(role){
   ['role-badge','role-badge-ink'].forEach(id=>{
     const el=document.getElementById(id);if(el)el.textContent=label;
   });
-  // v29: Guests shouldn't be prompted to load a URL — update no-video messaging
+  // Guests see waiting message and no load row; hosts see URL input
   if(role==='guest'){
     const nv=document.getElementById('no-video');
-    if(nv){
-      const h=nv.querySelector('h3'),p=nv.querySelector('p');
-      if(h)h.textContent='Waiting for host…';
-      if(p)p.textContent='The host will start the video. Hang tight!';
-    }
+    if(nv){const h=nv.querySelector('h3');if(h)h.textContent='Waiting for host…';}
+    const lr=document.getElementById('no-video-load-row');if(lr)lr.style.display='none';
+  }else{
+    const nv=document.getElementById('no-video');
+    if(nv){const h=nv.querySelector('h3');if(h)h.textContent='Paste a YouTube URL';}
+    const lr=document.getElementById('no-video-load-row');if(lr)lr.style.display='flex';
   }
 }
 // Update members in both watch and ink panels
@@ -2542,9 +2568,14 @@ function initSocket(){
 
     if(mode==='game'){
       document.getElementById('no-video').style.display='flex';ytLoaded=false;switchTab('ink');
-    }else{
+    }else if(videoId){
       ytLoaded=true;
       await loadYTAPI();await createPlayer(videoId,0);startHeartbeat();switchTab('watch');
+    }else{
+      ytLoaded=false;
+      document.getElementById('yt-player').style.display='none';
+      document.getElementById('no-video').style.display='flex';
+      switchTab('watch');
     }
     initCanvas();initVoice();
   });
