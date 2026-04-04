@@ -202,14 +202,29 @@ button{
 /* Username badge - always visible (legacy, not shown in topbar now) */
 .user-badge{display:none;}
 .topbar-right{display:flex;align-items:center;gap:.45rem;}
+@keyframes chipShimmer{
+  0%{background-position:200% center;}
+  100%{background-position:-200% center;}
+}
 .code-chip{
-  background:var(--surface);border:1px solid var(--border);
+  background:linear-gradient(90deg,
+    var(--surface) 0%,
+    var(--surface) 30%,
+    rgba(225,193,121,.18) 45%,
+    rgba(255,235,180,.32) 50%,
+    rgba(225,193,121,.18) 55%,
+    var(--surface) 70%,
+    var(--surface) 100%
+  );
+  background-size:200% auto;
+  animation:chipShimmer 2.8s linear infinite;
+  border:1px solid var(--border);
   border-radius:var(--r-xs);padding:.24rem .58rem;
   font-size:.61rem;letter-spacing:.1em;color:var(--text-dim);
   cursor:pointer;transition:border-color .2s,color .2s;user-select:none;
 }
 .code-chip:hover{border-color:var(--border-hi);color:var(--gold);}
-.code-chip.copied{border-color:var(--green);color:var(--green);}
+.code-chip.copied{border-color:var(--green);color:var(--green);animation:none;background:var(--surface);}
 /* v27: exit room button */
 .exit-room-btn{background:transparent;border:1px solid var(--border);border-radius:var(--r-xs);padding:.24rem .52rem;font-size:.61rem;letter-spacing:.08em;color:var(--text-dim);cursor:pointer;transition:border-color .2s,color .2s,background .2s;white-space:nowrap;flex-shrink:0;}
 .exit-room-btn:hover{border-color:#e74c3c;color:#e74c3c;background:rgba(231,76,60,.08);}
