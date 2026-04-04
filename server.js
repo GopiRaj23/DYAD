@@ -128,6 +128,7 @@ function makeScribble() {
   return {
     active: false,
     paused: false,   // FIX 3: game pause state
+    hasBeenPlayed: false, // after first game anyone can start a rematch
     word: null, wordChoices: [],
     drawerId: null, drawerName: null,
     roundTimer: null, wordChoiceTimer: null,
@@ -434,11 +435,11 @@ io.on('connection', (socket) => {
 
   /* ══════ INKMIND ══════ */
   socket.on('scribble-start', ({ roundsPerPlayer = 1 } = {}) => {
-    // v39: only the host may start the game
-    if (!socket.isHost) return;
     if (!socket.roomCode) return;
     const room = rooms.get(socket.roomCode);
     if (!room || room.participants.size < 2) return;
+    // First game: host-only. After first game: any participant can start a rematch.
+    if (!socket.isHost && !room.scribble.hasBeenPlayed) return;
     const sc = room.scribble;
     clearScribbleTimers(sc);
 
@@ -615,6 +616,7 @@ io.on('connection', (socket) => {
 
     if (sc.roundsCompleted >= sc.totalRounds) {
       sc.active = false;
+      sc.hasBeenPlayed = true; // unlock rematch for all participants
       setTimeout(() => io.to(roomCode).emit('game-over', {
         rounds: sc.roundsCompleted, scores: buildScoreList(room)
       }), 3500);
