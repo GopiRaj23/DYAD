@@ -877,6 +877,7 @@ button{
   position:fixed;z-index:10001;border-radius:10px;
   box-shadow:0 0 0 9999px rgba(0,0,0,.72);
   pointer-events:none;transition:all .35s cubic-bezier(.4,0,.2,1);
+  display:none;
 }
 #tour-tip{
   position:fixed;z-index:10002;
@@ -885,6 +886,7 @@ button{
   max-width:260px;min-width:200px;
   box-shadow:0 8px 32px rgba(0,0,0,.5);
   transition:all .35s cubic-bezier(.4,0,.2,1);
+  display:none;
 }
 #tour-tip-title{font-size:.82rem;font-weight:800;color:var(--gold);margin-bottom:.35rem;letter-spacing:.02em;}
 #tour-tip-body{font-size:.73rem;color:var(--text-dim);line-height:1.55;margin-bottom:.85rem;}
@@ -3124,12 +3126,6 @@ updateFeedbackPos();
       el:'rb-watch',
       title:'📺 Watch Tab',
       body:'This is the Watch tab. Paste any YouTube link in the bar to the right and hit Load. Play, pause, and seek — it syncs for everyone in the room.',
-      arrow:'bottom'
-    },
-    {
-      el:'yt-tray',
-      title:'▶ Load a video',
-      body:'Paste a YouTube URL here and hit Load. The video loads for everyone in the room at the same time.',
       arrow:'bottom'
     },
     {
