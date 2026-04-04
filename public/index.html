@@ -871,8 +871,8 @@ button{
 
 /* ── v32: FEEDBACK BUTTON & MODAL ───────────────────────────────────────── */
 /* ══ ONBOARDING TOUR ══ */
-#tour-backdrop{position:fixed;inset:0;z-index:10000;pointer-events:none;}
-#tour-backdrop.active{pointer-events:all;}
+#tour-backdrop{position:fixed;inset:0;z-index:10000;pointer-events:none;display:none;}
+#tour-backdrop.active{pointer-events:all;display:block;}
 #tour-spotlight{
   position:fixed;z-index:10001;border-radius:10px;
   box-shadow:0 0 0 9999px rgba(0,0,0,.72);
