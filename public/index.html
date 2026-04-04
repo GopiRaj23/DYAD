@@ -1479,6 +1479,8 @@ function showLB(scores,rounds){
       <span class="lb-pts">${s.score} pts</span>
     </div>`).join('');
   document.getElementById('lb-sub').textContent=`${rounds} round${rounds!==1?'s':''} completed`;
+  // Only the host can start a new game — hide Play Again for guests
+  document.getElementById('lb-overlay').querySelector('.lb-new').style.display=isHost?'':'none';
   document.getElementById('lb-overlay').classList.add('open');
 }
 function closeLB(){document.getElementById('lb-overlay').classList.remove('open');}
