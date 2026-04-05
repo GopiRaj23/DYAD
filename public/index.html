@@ -10,6 +10,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Cormorant:wght@400;600;700&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet"/>
 <script src="/socket.io/socket.io.js"></script>
 <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
 <style>
 /* ══ TOKENS ══ */
 :root{
@@ -64,110 +65,59 @@ button{
 #page-landing{
   min-height:100svh;overflow-y:auto;display:flex;flex-direction:column;
   align-items:center;justify-content:center;
-  padding:1.5rem 1.2rem calc(2rem + env(safe-area-inset-bottom,0px));position:relative;
+  padding:1.5rem 1.2rem calc(2rem + env(safe-area-inset-bottom,0px));
+  position:relative;z-index:1;
 }
 #space-canvas{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:0;}
-.logo-block{text-align:center;margin-bottom:1.6rem;animation:riseIn .6s cubic-bezier(.22,1,.36,1) both;}
-/* ── Logo animation (10s cycle) ── */
-.logo-anim{position:relative;display:flex;align-items:center;justify-content:center;height:100px;margin-bottom:.5rem;}
-
-/* Concentric circles */
-.cc-stage{position:absolute;display:flex;align-items:center;justify-content:center;}
-.cc-ring{position:absolute;border-radius:50%;border:1.5px solid #E1C179;opacity:0;}
-.cc-r1{width:26px;height:26px;animation:ccR1 10s ease-in-out infinite;}
-.cc-r2{width:50px;height:50px;animation:ccR2 10s ease-in-out infinite;}
-.cc-r3{width:74px;height:74px;animation:ccR3 10s ease-in-out infinite;}
-@keyframes ccR1{
-  0%{opacity:0;transform:scale(0);}
-  7%{opacity:1;transform:scale(1);}
-  28%{opacity:1;transform:scale(1);}
-  38%{opacity:0;transform:scale(0.4);}
-  100%{opacity:0;transform:scale(0);}
+.logo-block{text-align:center;margin-bottom:1.6rem;}
+/* ── Static logo: icon + wordmark ── */
+.logo-icon{
+  width:90px;height:90px;border-radius:22px;
+  background:linear-gradient(145deg,#0d3a3a,#08232e);
+  border:1px solid rgba(225,193,121,0.28);
+  display:inline-flex;align-items:center;justify-content:center;
+  margin-bottom:1rem;
+  box-shadow:0 8px 36px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.06);
+  position:relative;overflow:hidden;
 }
-@keyframes ccR2{
-  0%,5%{opacity:0;transform:scale(0);}
-  13%{opacity:1;transform:scale(1);}
-  28%{opacity:1;transform:scale(1);}
-  38%{opacity:0;transform:scale(0.4);}
-  100%{opacity:0;transform:scale(0);}
+/* shimmer sweep on icon */
+.logo-icon::after{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(110deg,transparent 30%,rgba(255,235,160,0.18) 50%,transparent 70%);
+  background-size:200% 100%;
+  animation:iconShimmer 3.2s ease-in-out infinite;
 }
-@keyframes ccR3{
-  0%,10%{opacity:0;transform:scale(0);}
-  20%{opacity:1;transform:scale(1);}
-  28%{opacity:1;transform:scale(1);}
-  38%{opacity:0;transform:scale(0.4);}
-  100%{opacity:0;transform:scale(0);}
+.logo-icon svg{width:70px;height:46px;position:relative;z-index:1;}
+@keyframes iconShimmer{
+  0%{background-position:200% 0}
+  60%,100%{background-position:-200% 0}
 }
-
-/* Infinity — two ovals that expand from center */
-.inf-stage{position:absolute;display:flex;align-items:center;justify-content:center;width:176px;height:70px;}
-.inf-oval{position:absolute;width:80px;height:62px;border-radius:50%;border:2px solid #E1C179;opacity:0;}
-.inf-oval-l{animation:infOvalL 10s ease-in-out infinite;}
-.inf-oval-r{animation:infOvalR 10s ease-in-out infinite;}
-/* Left oval: starts at center (translateX=0, scale=0) → slides left to final pos */
-@keyframes infOvalL{
-  0%,34%{opacity:0;transform:translateX(0) scale(0.1);}
-  48%{opacity:1;transform:translateX(-48px) scale(1);}
-  57%{opacity:1;transform:translateX(-48px) scale(1);}
-  66%{opacity:0;transform:translateX(-48px) scale(1);}
-  100%{opacity:0;transform:translateX(0) scale(0.1);}
-}
-@keyframes infOvalR{
-  0%,34%{opacity:0;transform:translateX(0) scale(0.1);}
-  48%{opacity:1;transform:translateX(48px) scale(1);}
-  57%{opacity:1;transform:translateX(48px) scale(1);}
-  66%{opacity:0;transform:translateX(48px) scale(1);}
-  100%{opacity:0;transform:translateX(0) scale(0.1);}
-}
-/* Spinning arc on each oval */
-.inf-arc{position:absolute;inset:-2px;border-radius:50%;border:2px solid transparent;border-top-color:rgba(255,248,200,0.95);border-right-color:rgba(255,244,180,0.35);animation:spinArc 2s linear infinite;}
-.inf-arc-r{animation-direction:reverse;animation-delay:-.8s;}
-@keyframes spinArc{to{transform:rotate(360deg);}}
-
-/* DYAAD */
-.dyaad-stage{
-  position:absolute;
+/* shimmer sweep on wordmark */
+.brand-wordmark{
   font-family:var(--font-brand);
-  font-size:clamp(2.2rem,6.5vw,3.6rem);
+  font-size:clamp(2.8rem,9vw,4.6rem);
   font-weight:700;
-  letter-spacing:.26em;
-  background:linear-gradient(90deg,#b8820a 0%,#E1C179 20%,#fff8d0 40%,#fffce8 50%,#fff8d0 60%,#E1C179 80%,#b8820a 100%);
-  background-size:300% 100%;
+  letter-spacing:.36em;
+  line-height:1;
+  display:block;
+  background:linear-gradient(90deg,#c8a84b 0%,#E1C179 35%,#fff5c0 50%,#E1C179 65%,#c8a84b 100%);
+  background-size:250% auto;
   -webkit-background-clip:text;
   -webkit-text-fill-color:transparent;
   background-clip:text;
-  opacity:0;
-  animation:dyaadFade 10s ease-in-out infinite, dyaadShimmer 2.2s linear infinite;
+  animation:wordShimmer 3.2s ease-in-out infinite;
 }
-@keyframes dyaadFade{
-  0%,62%{opacity:0;}
-  70%{opacity:1;}
-  88%{opacity:1;}
-  97%{opacity:0;}
-  100%{opacity:0;}
+@keyframes wordShimmer{
+  0%{background-position:150% center}
+  60%,100%{background-position:-100% center}
 }
-@keyframes dyaadShimmer{
-  0%{background-position:100% 0;}
-  100%{background-position:-100% 0;}
-}
-.tagline{
-  font-size:.68rem;letter-spacing:.28em;text-transform:uppercase;color:var(--text-dim);margin-top:.4rem;
-  opacity:0;
-  animation:taglineFade 10s ease-in-out infinite;
-}
-@keyframes taglineFade{
-  0%,65%{opacity:0;}
-  73%{opacity:1;}
-  88%{opacity:1;}
-  97%{opacity:0;}
-  100%{opacity:0;}
-}
+.tagline{font-size:.66rem;letter-spacing:.3em;text-transform:uppercase;color:rgba(200,210,215,0.7);margin-top:.5rem;}
 .landing-inner{width:100%;max-width:680px;}
 .mode-toggle{display:flex;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:.28rem;gap:.28rem;margin-bottom:.6rem;animation:riseIn .5s cubic-bezier(.22,1,.36,1) both;}
 .mode-btn{flex:1;padding:.56rem .9rem;font-size:.76rem;font-weight:600;letter-spacing:.09em;text-transform:uppercase;border:none;border-radius:var(--r-sm);background:transparent;color:var(--text-dim);cursor:pointer;transition:all .22s;}
 .mode-btn.active{background:linear-gradient(135deg,var(--gold),var(--gold-deep));color:var(--bg-deep);box-shadow:0 2px 10px rgba(225,193,121,.28);}
 .mode-btn:not(.active):hover{color:var(--text);background:var(--surface2);}
-.username-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:1.1rem 1.3rem;margin-bottom:.6rem;animation:riseIn .5s cubic-bezier(.22,1,.36,1) both;animation-delay:.07s;}
+.username-card{background:rgba(14,26,28,0.30);backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,0.09);border-radius:var(--r);padding:1.1rem 1.3rem;margin-bottom:.6rem;animation:riseIn .5s cubic-bezier(.22,1,.36,1) both;animation-delay:.07s;}
 .card-label{font-size:.62rem;letter-spacing:.2em;text-transform:uppercase;color:var(--text-dim);margin-bottom:.72rem;display:flex;align-items:center;gap:.65rem;}
 .card-label::before,.card-label::after{content:'';flex:1;height:1px;background:var(--border-dim);}
 .username-row{display:flex;gap:.45rem;}
@@ -175,7 +125,7 @@ button{
 .randomize-btn{background:var(--surface2);border:1px solid var(--border-hi);color:var(--gold);font-size:.7rem;font-weight:600;border-radius:var(--r-sm);padding:.72rem .85rem;cursor:pointer;white-space:nowrap;transition:all .2s;flex-shrink:0;}
 .randomize-btn:hover{background:var(--teal);}
 .cards-row{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;animation:riseIn .5s cubic-bezier(.22,1,.36,1) both;animation-delay:.14s;}
-.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:1.2rem;position:relative;transition:border-color .3s;}
+.card{background:rgba(14,26,28,0.30);backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,0.09);border-radius:var(--r);padding:1.2rem;position:relative;transition:border-color .3s;}
 .card:focus-within{border-color:var(--border-hi);}
 .input-code{font-family:var(--font-brand);font-size:1.9rem;text-align:center;letter-spacing:.32em;font-weight:700;color:var(--gold);}
 @media(max-width:500px){.cards-row{grid-template-columns:1fr;}}
@@ -1059,25 +1009,40 @@ button{
 <canvas id="space-canvas"></canvas>
 <div id="page-landing">
   <div class="logo-block">
-    <div class="logo-anim" aria-label="DYAAD">
-      <!-- Concentric circles -->
-      <div class="cc-stage">
-        <div class="cc-ring cc-r1"></div>
-        <div class="cc-ring cc-r2"></div>
-        <div class="cc-ring cc-r3"></div>
-      </div>
-      <!-- Infinity two ovals -->
-      <div class="inf-stage">
-        <div class="inf-oval inf-oval-l">
-          <div class="inf-arc"></div>
-        </div>
-        <div class="inf-oval inf-oval-r">
-          <div class="inf-arc inf-arc-r"></div>
-        </div>
-      </div>
-      <!-- DYAAD text -->
-      <div class="dyaad-stage">DYAAD</div>
+    <div class="logo-icon">
+      <!-- Infinity: lemniscate figure-8, self-crossing at center -->
+      <svg viewBox="0 0 84 46" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <!-- diagonal gold gradient: dark-gold → bright gold → pale → dark-gold -->
+          <linearGradient id="gInf" x1="0" y1="46" x2="84" y2="0" gradientUnits="userSpaceOnUse">
+            <stop offset="0%"   stop-color="#a06210"/>
+            <stop offset="30%"  stop-color="#D4A840"/>
+            <stop offset="55%"  stop-color="#FFE98A"/>
+            <stop offset="80%"  stop-color="#D4A840"/>
+            <stop offset="100%" stop-color="#a06210"/>
+          </linearGradient>
+        </defs>
+        <!--
+          Path traces the ∞ symbol as a single continuous figure-8:
+          Start at center (42,23) → arc up-right through right loop → back to center
+          → arc up-left through left loop → back to center.
+          The path self-intersects at (42,23) producing the ∞ crossover.
+          Each loop is ~24×24px — nearly circular, matching the reference.
+        -->
+        <path
+          d="M 42,23
+             C 42,11 66,11 66,23
+             C 66,35 42,35 42,23
+             C 42,11 18,11 18,23
+             C 18,35 42,35 42,23"
+          stroke="url(#gInf)"
+          stroke-width="4.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          fill="none"/>
+      </svg>
     </div>
+    <span class="brand-wordmark" aria-label="DYAAD">DYAAD</span>
     <p class="tagline">Shared Moments</p>
   </div>
   <div class="landing-inner">
@@ -1619,7 +1584,8 @@ async function loadFromTray(){
 }
 function showLoadScreen(){
   stopHeartbeat();
-  if(player){try{player.stopVideo();}catch(e){}player=null;}
+  stopWatchdog();
+  if(player){try{player.destroy();}catch(e){}player=null;}
   document.getElementById('yt-player').innerHTML='';
   document.getElementById('yt-player').style.display='none';
   ytLoaded=false;
@@ -1632,8 +1598,14 @@ async function loadFromNoVideo(){
   const inp=document.getElementById('no-video-url');
   const vid=extractVid((inp?.value||'').trim());
   if(!vid){if(inp){inp.style.borderColor='var(--red)';setTimeout(()=>inp.style.borderColor='',1400);}return;}
+  // Fully destroy any existing player before creating a new one
+  stopHeartbeat();
+  stopWatchdog();
+  if(player){try{player.destroy();}catch(e){}player=null;}
   document.getElementById('no-video').style.display='none';
-  document.getElementById('yt-player').style.display='';
+  const ytEl=document.getElementById('yt-player');
+  ytEl.innerHTML='';
+  ytEl.style.display='';
   ytLoaded=true;
   if(!window.YT||!window.YT.Player)await loadYTAPI();
   await createPlayer(vid,0);
@@ -1724,8 +1696,8 @@ window.addEventListener('DOMContentLoaded',()=>{
   // Room key bindings
   document.getElementById('no-video-url').addEventListener('keydown',e=>{if(e.key==='Enter')loadFromNoVideo();});
   document.getElementById('next-url').addEventListener('keydown',e=>{if(e.key==='Enter')loadNextVideo();});
-  document.getElementById('watch-input').addEventListener('keydown',e=>{if(e.key==='Enter')sendChat('watch');});
-  document.getElementById('ink-input').addEventListener('keydown',e=>{if(e.key==='Enter')sendChat('ink');});
+  document.getElementById('watch-input').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();sendChat('watch');}});
+  document.getElementById('ink-input').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();sendChat('ink');}});
   document.getElementById('watch-input').addEventListener('input',()=>onType('watch'));
   document.getElementById('ink-input').addEventListener('input',()=>onType('ink'));
 
@@ -2860,7 +2832,7 @@ function initSocket(){
     if(!videoId)return;
     ytLoaded=true;
     document.getElementById('no-video').style.display='none';
-    
+    document.getElementById('yt-player').style.display='';
     latestHostTimestamp=timestamp||0;latestHostPlaying=isPlaying;latestHostReceived=Date.now()/1000;
     // Destroy old player so new video always starts clean
     if(player){try{player.destroy();}catch(e){}player=null;}
@@ -3357,74 +3329,253 @@ updateFeedbackPos();
 </script>
 
 <script>
-/* ══════════════════════════════════════
-   SPACE BACKGROUND — deep-space flythrough
-   Three star layers at different speeds/sizes
-════════════════════════════════════════ */
+/* ══ SPACE FLY-THROUGH — Three.js ══ */
 (function(){
-  const sc=document.getElementById('space-canvas');
-  if(!sc)return;
-  const ctx=sc.getContext('2d');
-  let W,H;
-  function resize(){W=sc.width=window.innerWidth;H=sc.height=window.innerHeight;}
-  resize();window.addEventListener('resize',resize);
+  const sc = document.getElementById('space-canvas');
+  if (!sc || !window.THREE) return;
+  const THREE = window.THREE;
 
-  // Generate stars for 3 layers: [count, speed, minR, maxR, alpha]
-  const LAYERS=[
-    {n:260,spd:0.08,rMin:0.3,rMax:0.9,a:0.55},
-    {n:120,spd:0.20,rMin:0.6,rMax:1.5,a:0.70},
-    {n:40, spd:0.42,rMin:1.0,rMax:2.4,a:0.90}
+  let W = window.innerWidth, H = window.innerHeight;
+
+  const renderer = new THREE.WebGLRenderer({ canvas: sc, alpha: false, antialias: false, powerPreference: 'low-power' });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+  renderer.setClearColor(0x00010d, 1);
+
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x00010d, 0.00028);
+
+  const camera = new THREE.PerspectiveCamera(70, W / H, 1, 3000);
+  camera.position.set(0, 0, 0);
+
+  window.addEventListener('resize', () => {
+    W = window.innerWidth; H = window.innerHeight;
+    camera.aspect = W / H; camera.updateProjectionMatrix();
+    renderer.setSize(W, H);
+  });
+
+  /* ── Soft glow point texture ── */
+  function makeGlowTex() {
+    const c = document.createElement('canvas');
+    c.width = c.height = 64;
+    const ctx = c.getContext('2d');
+    const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+    g.addColorStop(0,    'rgba(255,255,255,1)');
+    g.addColorStop(0.15, 'rgba(200,220,255,0.8)');
+    g.addColorStop(0.4,  'rgba(120,160,255,0.3)');
+    g.addColorStop(1,    'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 64, 64);
+    return new THREE.CanvasTexture(c);
+  }
+  const GLOW_TEX = makeGlowTex();
+
+  /* ── Star field — 3 layers at different depths/speeds ── */
+  const LAYERS = [
+    { count: 2200, spread: 900, depth: 2400, speed: 140, size: 2.8, opacity: 0.9 },  // far, slow
+    { count: 1400, spread: 700, depth: 1600, speed: 280, size: 2.2, opacity: 1.0 },  // mid
+    { count:  600, spread: 500, depth:  900, speed: 520, size: 1.6, opacity: 1.0 },  // near, fast
   ];
-  const stars=LAYERS.flatMap(({n,spd,rMin,rMax,a})=>
-    Array.from({length:n},()=>({
-      x:Math.random()*3000-500,y:Math.random()*2000-400,
-      r:rMin+Math.random()*(rMax-rMin),
-      spd,a,
-      hue:Math.random()<0.12?200+Math.random()*40:0 // occasional blue-tinted
-    }))
-  );
 
-  // Nebula clouds (static radial gradients placed once)
-  const NEBULAE=[
-    {cx:0.72,cy:0.18,rx:420,ry:320,c:'rgba(16,63,90,0.38)'},
-    {cx:0.18,cy:0.78,rx:360,ry:280,c:'rgba(20,55,80,0.30)'},
-    {cx:0.50,cy:0.50,rx:500,ry:380,c:'rgba(10,40,60,0.18)'},
-    {cx:0.85,cy:0.65,rx:260,ry:200,c:'rgba(60,30,80,0.18)'},
+  // Star colors: mostly white/blue-white, some gold
+  const STAR_COLORS = [
+    new THREE.Color(1.0, 1.0, 1.0),
+    new THREE.Color(0.85, 0.92, 1.0),
+    new THREE.Color(0.75, 0.88, 1.0),
+    new THREE.Color(1.0, 0.95, 0.78),  // warm gold
+    new THREE.Color(0.6,  0.8,  1.0),  // blue
   ];
 
-  let oy=0; // scroll offset — y direction (moving forward into space)
-  function frame(){
-    oy+=0.25; // slow drift speed
-    ctx.clearRect(0,0,W,H);
+  const starLayers = LAYERS.map(cfg => {
+    const { count, spread, depth } = cfg;
+    const positions = new Float32Array(count * 3);
+    const colors    = new Float32Array(count * 3);
+    const sizes     = new Float32Array(count);
+    for (let i = 0; i < count; i++) {
+      positions[i*3]   = (Math.random() - 0.5) * spread * 2;
+      positions[i*3+1] = (Math.random() - 0.5) * spread * 2;
+      positions[i*3+2] = -(Math.random() * depth);          // spread behind camera
+      const col = STAR_COLORS[Math.floor(Math.random() * STAR_COLORS.length)];
+      colors[i*3] = col.r; colors[i*3+1] = col.g; colors[i*3+2] = col.b;
+      sizes[i] = cfg.size * (0.4 + Math.random() * 1.4);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geo.setAttribute('color',    new THREE.BufferAttribute(colors, 3));
+    geo.setAttribute('size',     new THREE.BufferAttribute(sizes, 1));
 
-    // Deep background
-    const bg=ctx.createLinearGradient(0,0,0,H);
-    bg.addColorStop(0,'#00020a');bg.addColorStop(1,'#010510');
-    ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
+    // Custom shader: per-vertex size + glow texture + vertex color
+    const mat = new THREE.ShaderMaterial({
+      uniforms: { uTex: { value: GLOW_TEX } },
+      vertexShader: `
+        attribute float size;
+        varying vec3 vColor;
+        void main(){
+          vColor = color;
+          vec4 mv = modelViewMatrix * vec4(position,1.0);
+          gl_PointSize = size * (300.0 / -mv.z);
+          gl_Position  = projectionMatrix * mv;
+        }
+      `,
+      fragmentShader: `
+        uniform sampler2D uTex;
+        varying vec3 vColor;
+        void main(){
+          vec4 t = texture2D(uTex, gl_PointCoord);
+          gl_FragColor = vec4(vColor * t.rgb, t.a);
+        }
+      `,
+      transparent: true, depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      vertexColors: true,
+    });
+    const points = new THREE.Points(geo, mat);
+    scene.add(points);
+    return { points, geo, positions, cfg, depth };
+  });
 
-    // Nebulae
-    NEBULAE.forEach(({cx,cy,rx,ry,c})=>{
-      const gx=cx*W,gy=cy*H;
-      const g=ctx.createRadialGradient(gx,gy,0,gx,gy,Math.max(rx,ry));
-      g.addColorStop(0,c);g.addColorStop(1,'transparent');
-      ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  /* ── Distant nebula dust (static, colour atmosphere) ── */
+  function makeNebula(count, cx, cy, cz, radius, hexColor, sz) {
+    const pos = new Float32Array(count * 3);
+    const tmp = new THREE.Color(hexColor);
+    const geo = new THREE.BufferGeometry();
+    for (let i = 0; i < count; i++) {
+      const r  = Math.pow(Math.random(), 0.3) * radius;
+      const th = Math.random() * Math.PI * 2;
+      const ph = Math.acos(2 * Math.random() - 1);
+      pos[i*3]   = cx + r * Math.sin(ph) * Math.cos(th);
+      pos[i*3+1] = cy + r * Math.sin(ph) * Math.sin(th) * 0.45;
+      pos[i*3+2] = cz + (Math.random() - 0.5) * radius * 0.6;
+    }
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+
+    const c2 = document.createElement('canvas');
+    c2.width = c2.height = 64;
+    const ctx2 = c2.getContext('2d');
+    const g2 = ctx2.createRadialGradient(32,32,0,32,32,32);
+    g2.addColorStop(0, `rgba(${Math.round(tmp.r*255)},${Math.round(tmp.g*255)},${Math.round(tmp.b*255)},1)`);
+    g2.addColorStop(0.4, `rgba(${Math.round(tmp.r*255)},${Math.round(tmp.g*255)},${Math.round(tmp.b*255)},0.3)`);
+    g2.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx2.fillStyle = g2;
+    ctx2.fillRect(0, 0, 64, 64);
+    const tex = new THREE.CanvasTexture(c2);
+
+    const mat = new THREE.PointsMaterial({
+      size: sz, map: tex, transparent: true, opacity: 0.55,
+      depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true,
+    });
+    const p = new THREE.Points(geo, mat);
+    scene.add(p);
+    return p;
+  }
+
+  const nebulae = [
+    makeNebula(2000, 500,  200, -1400, 600, '#0a3a6e', 9),   // blue right
+    makeNebula(1600, -450,-180, -1600, 550, '#2e0a6e', 9),   // purple left
+    makeNebula(1200,  80,  300, -1200, 400, '#5a0a38', 8),   // magenta top
+    makeNebula(1000, -120,-200, -1000, 350, '#064444', 8),   // teal centre-left
+    makeNebula(3500,  0,    0,  -2000,1100, '#020818', 12),  // deep space fill
+  ];
+
+  // Slow nebula rotation
+  let nebT = 0;
+
+  /* ── Shooting stars ── */
+  const shooters = Array.from({ length: 5 }, () => {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
+    const mat = new THREE.LineBasicMaterial({
+      color: 0xffffff, transparent: true, opacity: 0,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+    });
+    const line = new THREE.Line(geo, mat);
+    scene.add(line);
+    return { line, geo, mat, active: false, t: 0, timer: Math.random() * 10 + 4, interval: Math.random() * 12 + 6 };
+  });
+
+  function fireShooter(s) {
+    s.active = true; s.t = 0;
+    s.sx = (Math.random() - 0.5) * 800;
+    s.sy = (Math.random() * 0.5 + 0.2) * 400;
+    s.sz = -(Math.random() * 400 + 100);
+    const a  = (Math.random() * 0.5 + 0.05) * Math.PI;
+    const ln = Math.random() * 200 + 80;
+    s.ex = s.sx + Math.cos(a) * ln;
+    s.ey = s.sy - Math.sin(a) * ln;
+    s.ez = s.sz;
+    s.dur = 0.5 + Math.random() * 0.4;
+  }
+
+  /* ── Animation ── */
+  const clock = new THREE.Clock();
+  let elapsed = 0;
+
+  // Camera path: gentle sine-wave banking through space
+  const CAM_SWAY_X = 22, CAM_SWAY_Y = 14;
+
+  function frame() {
+    const dt = Math.min(clock.getDelta(), 0.05);
+    elapsed += dt;
+
+    // Move camera forward
+    camera.position.x = Math.sin(elapsed * 0.038) * CAM_SWAY_X + Math.sin(elapsed * 0.019) * 8;
+    camera.position.y = Math.cos(elapsed * 0.028) * CAM_SWAY_Y + Math.cos(elapsed * 0.015) * 5;
+    // Look slightly ahead of center to feel like forward flight
+    camera.lookAt(
+      camera.position.x * 0.1,
+      camera.position.y * 0.1,
+      -200
+    );
+
+    // Scroll each star layer toward camera, wrap around
+    starLayers.forEach(({ positions, cfg, depth }) => {
+      const { count, speed } = cfg;
+      const step = speed * dt;
+      for (let i = 0; i < count; i++) {
+        positions[i*3+2] += step;
+        if (positions[i*3+2] > 80) {              // passed camera — reset to far end
+          positions[i*3]   = (Math.random() - 0.5) * cfg.spread * 2;
+          positions[i*3+1] = (Math.random() - 0.5) * cfg.spread * 2;
+          positions[i*3+2] = -depth + (Math.random() * 60);
+        }
+      }
+      const layer = starLayers.find(l => l.cfg === cfg);
+      const attr = layer.geo.attributes.position;
+      attr.array.set(positions);
+      attr.needsUpdate = true;
     });
 
-    // Stars — each layer scrolls at its own speed; wrap vertically
-    stars.forEach(s=>{
-      const sy=(s.y+oy*s.spd*60)%H;
-      const sx=s.x%W;
-      const hsl=s.hue?`hsla(${s.hue},60%,80%,${s.a})`:`rgba(255,255,255,${s.a})`;
-      ctx.beginPath();
-      ctx.arc((sx+W)%W,(sy+H)%H,s.r,0,Math.PI*2);
-      ctx.fillStyle=hsl;ctx.fill();
+    // Slow nebula drift
+    nebT += dt;
+    nebulae.forEach((n, i) => {
+      n.rotation.y += 0.000012 * (i % 2 === 0 ? 1 : -1);
+      n.rotation.x += 0.000006 * (i % 3 === 0 ? 1 : -1);
     });
 
+    // Shooting stars
+    shooters.forEach(s => {
+      if (!s.active) {
+        s.timer += dt;
+        if (s.timer >= s.interval) { s.timer = 0; fireShooter(s); }
+      } else {
+        s.t += dt / s.dur;
+        if (s.t >= 1) { s.active = false; s.mat.opacity = 0; return; }
+        const head = Math.min(s.t * 1.5, 1);
+        const tail = Math.max(s.t * 1.5 - 0.4, 0);
+        const a = s.geo.attributes.position.array;
+        a[0] = s.sx + (s.ex-s.sx)*tail;  a[1] = s.sy + (s.ey-s.sy)*tail;  a[2] = s.sz;
+        a[3] = s.sx + (s.ex-s.sx)*head;  a[4] = s.sy + (s.ey-s.sy)*head;  a[5] = s.ez;
+        s.geo.attributes.position.needsUpdate = true;
+        const fade = s.t < 0.15 ? s.t/0.15 : s.t > 0.65 ? (1-s.t)/0.35 : 1;
+        s.mat.opacity = fade * 0.95;
+      }
+    });
+
+    renderer.render(scene, camera);
     requestAnimationFrame(frame);
   }
-  frame();
+  requestAnimationFrame(frame);
 })();
-
 </script>
 </body>
 </html>
