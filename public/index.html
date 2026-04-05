@@ -1702,9 +1702,11 @@ window.addEventListener('DOMContentLoaded',()=>{
   const icg=document.getElementById('input-code-game');
   if(icg){icg.addEventListener('keydown',e=>{if(e.key==='Enter')joinGameRoom();});}
 
-  // Room key bindings
-  document.getElementById('no-video-url').addEventListener('keydown',e=>{if(e.key==='Enter')loadFromNoVideo();});
-  document.getElementById('next-url').addEventListener('keydown',e=>{if(e.key==='Enter')loadNextVideo();});
+  // Room key bindings — guard against missing elements (crash here aborts all listeners below)
+  const nvUrl=document.getElementById('no-video-url');
+  if(nvUrl)nvUrl.addEventListener('keydown',e=>{if(e.key==='Enter')loadFromNoVideo();});
+  const nxUrl=document.getElementById('next-url');
+  if(nxUrl)nxUrl.addEventListener('keydown',e=>{if(e.key==='Enter')loadNextVideo();});
   // keydown: desktop + iOS. keyup: Android IME fires key='Unidentified' on keydown → catches Enter on keyup instead.
   // isComposing guard prevents double-fire during CJK composition.
   document.getElementById('watch-input').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.isComposing){e.preventDefault();sendChat('watch');}});
