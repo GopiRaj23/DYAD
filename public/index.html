@@ -2585,32 +2585,35 @@ function applyKeyboardLayout(){
   if(!portrait){
     pr.style.height='';
     rr.style.maxHeight='';rr.style.height='';
-    rl.style.maxHeight='';rl.style.overflow='';
+    rl.style.height='';rl.style.minHeight='';rl.style.flexShrink='';
     pr.classList.remove('kbd-open');
     return;
   }
   const vvh=Math.round(window.visualViewport.height);
   const kbdH=Math.max(0,window.innerHeight-vvh);
   if(kbdH>80){
-    // Constrain page-room to visible viewport — fixes position:fixed extending under keyboard
+    // Constrain page-room to visible viewport height
     pr.style.height=vvh+'px';
     pr.classList.add('kbd-open');
+
+    // Freeze room-left (video/canvas) at its EXACT current rendered height — never shrink it.
+    // The video iframe must not be touched; keyboard space comes entirely from the chat area.
+    const rlH=rl.offsetHeight;
+    rl.style.height=rlH+'px';
+    rl.style.minHeight=rlH+'px';
+    rl.style.flexShrink='0'; // prevent flex from compressing it
+
+    // Give chat whatever remains after topbar + ribbon + video + dock
     const topbarH=document.querySelector('.topbar')?.offsetHeight||48;
     const ribbonH=document.querySelector('.ribbon')?.offsetHeight||40;
     const dockH=document.querySelector('.dock')?.offsetHeight||52;
-    const available=Math.max(vvh-topbarH-ribbonH-dockH,120);
-    // Video/game: at most 38% — keeps it visible but compact above chat
-    const rlH=Math.min(rl.offsetHeight,Math.floor(available*0.38));
-    rl.style.maxHeight=rlH+'px';
-    rl.style.overflow='hidden';
-    // Chat: remaining space
-    const rrH=Math.max(available-rlH,80);
-    rr.style.maxHeight=rrH+'px';
+    const rrH=Math.max(vvh-topbarH-ribbonH-rlH-dockH,72);
     rr.style.height=rrH+'px';
+    rr.style.maxHeight=rrH+'px';
   }else{
     pr.style.height='';
     rr.style.maxHeight='';rr.style.height='';
-    rl.style.maxHeight='';rl.style.overflow='';
+    rl.style.height='';rl.style.minHeight='';rl.style.flexShrink='';
     pr.classList.remove('kbd-open');
     if(currentTab==='ink')requestAnimationFrame(()=>requestAnimationFrame(resizeCanvas));
   }
