@@ -1935,7 +1935,10 @@ function startWatchdog(){
     if(isSyncing)return;
     // State -1 = player unstarted/reset (black screen). Also catch guests stuck paused when host is playing.
     const stateReset=state===-1;
-    const guestStuck=!isHost&&latestHostPlaying&&state!==YT.PlayerState.PLAYING&&state!==YT.PlayerState.BUFFERING;
+    // guestHasInteracted mirrors the same guard in the heartbeat handler — only recover
+    // guests who have already tapped Sync In at least once. Prevents the watchdog from
+    // calling playVideo() before a user gesture, which breaks the join-sync flow.
+    const guestStuck=!isHost&&latestHostPlaying&&guestHasInteracted&&state!==YT.PlayerState.PLAYING&&state!==YT.PlayerState.BUFFERING;
     if(stateReset||guestStuck){
       isSyncing=true;
       const elapsed=latestHostPlaying?(Date.now()/1000-latestHostReceived):0;
@@ -2437,7 +2440,7 @@ function leaveRoom(){
   if(drawCtx&&drawCanvas){try{drawCtx.clearRect(0,0,drawCanvas.width,drawCanvas.height);}catch(e){}}
   strokeHistory=[];remoteStrokeHistory=[];
   // v38: reset video/sync state so new room starts clean
-  latestHostTimestamp=0;latestHostPlaying=false;_ppCycles=0;_syncDepth=0;
+  latestHostTimestamp=0;latestHostPlaying=false;_ppCycles=0;_syncDepth=0;guestHasInteracted=false;
   // Clear chat messages so old room's chat doesn't appear in next room
   const wm=document.getElementById('watch-msgs');if(wm)wm.innerHTML='';
   const im=document.getElementById('ink-msgs');if(im)im.innerHTML='';
