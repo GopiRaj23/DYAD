@@ -1598,17 +1598,24 @@ async function loadFromNoVideo(){
   const inp=document.getElementById('no-video-url');
   const vid=extractVid((inp?.value||'').trim());
   if(!vid){if(inp){inp.style.borderColor='var(--red)';setTimeout(()=>inp.style.borderColor='',1400);}return;}
-  // Fully destroy any existing player before creating a new one
-  stopHeartbeat();
-  stopWatchdog();
-  if(player){try{player.destroy();}catch(e){}player=null;}
+  stopHeartbeat(); stopWatchdog();
   document.getElementById('no-video').style.display='none';
   const ytEl=document.getElementById('yt-player');
-  ytEl.innerHTML='';
   ytEl.style.display='';
   ytLoaded=true;
-  if(!window.YT||!window.YT.Player)await loadYTAPI();
-  await createPlayer(vid,0);
+  if(player){
+    // Reuse existing player — loadVideoById auto-plays the new video immediately,
+    // avoiding the destroy→recreate race that caused the old video to persist.
+    isSyncing=true;
+    player.loadVideoById({videoId:vid,startSeconds:0});
+    setTimeout(()=>{isSyncing=false;},1500);
+    startWatchdog();
+  }else{
+    ytEl.innerHTML='';
+    if(!window.YT||!window.YT.Player)await loadYTAPI();
+    await createPlayer(vid,0);
+    try{player.playVideo();}catch(e){}
+  }
   if(isHost){socket.emit('change-video',{videoId:vid});startHeartbeat();}
   switchTab('watch');
   if(inp)inp.value='';
@@ -2834,21 +2841,22 @@ function initSocket(){
     document.getElementById('no-video').style.display='none';
     document.getElementById('yt-player').style.display='';
     latestHostTimestamp=timestamp||0;latestHostPlaying=isPlaying;latestHostReceived=Date.now()/1000;
-    // Destroy old player so new video always starts clean
-    if(player){try{player.destroy();}catch(e){}player=null;}
-    if(!window.YT||!window.YT.Player)await loadYTAPI();
-    await createPlayer(videoId,latestHostTimestamp);
-    // v30: Refresh received-time after async load — same as room-joined does.
-    // Without this, elapsed = createPlayer_load_time (5-8s) gets added to the target
-    // timestamp in doSyncPlay() when latestHostPlaying=true, causing 9-10s offset.
+    if(player){
+      // Reuse existing player — cue new video to host timestamp without autoplay.
+      // Avoids destroy→recreate async race that broke sync on change-video.
+      isSyncing=true;
+      player.cueVideoById({videoId,startSeconds:Math.floor(latestHostTimestamp)});
+      setTimeout(()=>{isSyncing=false;},1500);
+    }else{
+      if(!window.YT||!window.YT.Player)await loadYTAPI();
+      await createPlayer(videoId,latestHostTimestamp);
+    }
     latestHostReceived=Date.now()/1000;
     switchTab('watch');removePendingDot();
     if(_pendingAutoSync){
-      // Guest tapped "Sync In" before player loaded — auto-connect seamlessly now
       _pendingAutoSync=false;
       doSyncPlay();
     }else if(isPlaying){
-      // Show sync-prompt — user tap required due to browser autoplay policy
       const sp=document.getElementById('sync-prompt');if(sp)sp.classList.add('show');
     }else{
       toast('✓ New video loaded!');
