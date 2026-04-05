@@ -5,6 +5,15 @@ const path     = require('path');
 const { Pool } = require('pg');
 const { randomBytes } = require('crypto');
 
+// ── Privacy-first analytics (local SQLite, no personal data stored) ──────────
+let analytics = null;
+try {
+  analytics = require('./analytics.js');
+  console.log('[analytics] loaded — dashboard at /analytics.html?token=<ANALYTICS_TOKEN>');
+} catch(e) {
+  console.warn('[analytics] disabled:', e.message);
+}
+
 const app    = express();
 const server = http.createServer(app);
 // v39: raise pingTimeout to 5 min — mobile users browsing YouTube to copy a URL can be
@@ -57,6 +66,21 @@ app.post('/api/feedback', async (req, res) => {
     res.status(500).json({ error: 'DB error' });
   }
 });
+
+// ── GET /api/analytics — dashboard data (token-protected) ────────────────────
+app.get('/api/analytics', (req, res) => {
+  const ANALYTICS_TOKEN = process.env.ANALYTICS_TOKEN || 'dyaad-local';
+  if (req.query.token !== ANALYTICS_TOKEN) return res.status(401).json({ error: 'Unauthorized' });
+  if (!analytics) return res.status(503).json({ error: 'Analytics not available' });
+  res.json({
+    live:      analytics.getLiveCount(),
+    today:     analytics.getTodayStats(),
+    last30:    analytics.getLast30Days(),
+    hourly:    analytics.getHourlyToday(),
+    countries: analytics.getAllCountries(),
+  });
+});
+// ─────────────────────────────────────────────────────────────────────────────
 
 const rooms = new Map();
 
@@ -165,6 +189,14 @@ function allowRoomCreate(ip) {
 io.on('connection', (socket) => {
   console.log(`[+] ${socket.id}`);
 
+  // ── Analytics: record session start ──
+  let _analyticsId = null;
+  if (analytics) {
+    const ip = socket.handshake.headers['x-forwarded-for']?.split(',')[0].trim()
+               || socket.handshake.address;
+    _analyticsId = analytics.sessionStart(ip, 'stream'); // mode updated on create/join
+  }
+
   // v39: per-socket rate limit state
   let _lastChatAt = 0;
   let _lastDrawAt = 0;
@@ -203,6 +235,7 @@ io.on('connection', (socket) => {
       roomCode, videoId: cleanVideoId, mode: cleanMode,
       participants: [cleanUsername]
     });
+    if (analytics) { analytics.incRoomsCreated(); }
   });
 
   /* ── JOIN ROOM ── */
@@ -651,6 +684,7 @@ io.on('connection', (socket) => {
   /* ── Host migration on disconnect ── */
   socket.on('disconnect', () => {
     console.log(`[-] ${socket.id}`);
+    if (analytics && _analyticsId) analytics.sessionEnd(_analyticsId);
     if (!socket.roomCode) return;
     const room = rooms.get(socket.roomCode);
     if (!room) return;

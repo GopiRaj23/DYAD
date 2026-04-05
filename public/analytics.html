@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DYAAD — Analytics</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#080f10;color:#c8d4d8;min-height:100vh;padding:1.5rem}
+  h1{font-size:1.5rem;color:#e1c179;letter-spacing:.12em;margin-bottom:.2rem}
+  .sub{font-size:.75rem;color:#4a6068;margin-bottom:2rem;letter-spacing:.06em}
+  .refresh{font-size:.72rem;color:#2a8a5a;margin-left:.8rem;cursor:pointer;text-decoration:underline}
+
+  /* ── Stat cards ── */
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1rem;margin-bottom:2rem}
+  .card{background:#0d1c1e;border:1px solid #1a2e32;border-radius:12px;padding:1.1rem 1.3rem}
+  .card-val{font-size:2.2rem;font-weight:700;color:#e1c179;line-height:1}
+  .card-label{font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:#4a6068;margin-top:.35rem}
+
+  /* ── Charts grid ── */
+  .charts{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem;margin-bottom:2rem}
+  @media(max-width:700px){.charts{grid-template-columns:1fr}}
+  .chart-box{background:#0d1c1e;border:1px solid #1a2e32;border-radius:12px;padding:1.1rem}
+  .chart-title{font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:#4a6068;margin-bottom:.9rem}
+  .chart-wrap{position:relative;height:200px}
+
+  /* ── Country table ── */
+  .table-box{background:#0d1c1e;border:1px solid #1a2e32;border-radius:12px;padding:1.1rem;margin-bottom:2rem}
+  .table-title{font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:#4a6068;margin-bottom:.9rem}
+  table{width:100%;border-collapse:collapse;font-size:.82rem}
+  th{text-align:left;color:#4a6068;font-weight:500;padding:.35rem .6rem;border-bottom:1px solid #1a2e32}
+  td{padding:.38rem .6rem;border-bottom:1px solid #111e20;color:#a0b4b8}
+  tr:last-child td{border-bottom:none}
+  .bar-bg{background:#1a2e32;border-radius:4px;height:6px;margin-top:4px}
+  .bar-fill{background:#e1c179;border-radius:4px;height:6px}
+
+  .footer{font-size:.68rem;color:#2a4048;text-align:center;margin-top:1rem}
+  .error{color:#e05050;font-size:.85rem;padding:1rem;background:#1a0808;border-radius:8px}
+</style>
+</head>
+<body>
+<h1>DYAAD Analytics <span class="refresh" onclick="load()">↻ Refresh</span></h1>
+<p class="sub" id="last-updated">Loading…</p>
+
+<div class="cards" id="cards"></div>
+
+<div class="charts">
+  <div class="chart-box">
+    <div class="chart-title">Daily Sessions — last 30 days</div>
+    <div class="chart-wrap"><canvas id="cSessions"></canvas></div>
+  </div>
+  <div class="chart-box">
+    <div class="chart-title">Unique Visitors — last 30 days</div>
+    <div class="chart-wrap"><canvas id="cVisitors"></canvas></div>
+  </div>
+  <div class="chart-box">
+    <div class="chart-title">Sessions by Hour (today)</div>
+    <div class="chart-wrap"><canvas id="cHourly"></canvas></div>
+  </div>
+  <div class="chart-box">
+    <div class="chart-title">Avg Session Duration — last 30 days (min)</div>
+    <div class="chart-wrap"><canvas id="cDuration"></canvas></div>
+  </div>
+</div>
+
+<div class="table-box">
+  <div class="table-title">Top Countries — last 30 days</div>
+  <table id="country-table">
+    <thead><tr><th>Country</th><th>Sessions</th><th>Share</th></tr></thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<div class="footer">Data is aggregate only · IPs never stored · Auto-purged after 30 days · DYAAD Analytics</div>
+
+<script>
+const COUNTRY_NAMES = {"AF":"Afghanistan","AL":"Albania","DZ":"Algeria","AR":"Argentina","AU":"Australia","AT":"Austria","BD":"Bangladesh","BE":"Belgium","BR":"Brazil","CA":"Canada","CL":"Chile","CN":"China","CO":"Colombia","HR":"Croatia","CZ":"Czech Republic","DK":"Denmark","EG":"Egypt","FI":"Finland","FR":"France","DE":"Germany","GH":"Ghana","GR":"Greece","HK":"Hong Kong","HU":"Hungary","IN":"India","ID":"Indonesia","IE":"Ireland","IL":"Israel","IT":"Italy","JP":"Japan","KE":"Kenya","KR":"South Korea","MY":"Malaysia","MX":"Mexico","NL":"Netherlands","NZ":"New Zealand","NG":"Nigeria","NO":"Norway","PK":"Pakistan","PH":"Philippines","PL":"Poland","PT":"Portugal","RO":"Romania","RU":"Russia","SA":"Saudi Arabia","ZA":"South Africa","ES":"Spain","SE":"Sweden","CH":"Switzerland","TW":"Taiwan","TH":"Thailand","TR":"Turkey","UA":"Ukraine","GB":"United Kingdom","US":"United States","VN":"Vietnam","XX":"Unknown"};
+
+const GOLD='#e1c179', TEAL='#0d8a7a', DIM='#1e3a40';
+const chartDefaults = {
+  responsive:true, maintainAspectRatio:false,
+  plugins:{legend:{display:false}},
+  scales:{
+    x:{ticks:{color:'#4a6068',font:{size:10}},grid:{color:'#111e20'}},
+    y:{ticks:{color:'#4a6068',font:{size:10}},grid:{color:'#111e20'},beginAtZero:true}
+  }
+};
+
+let charts={};
+function makeChart(id, type, labels, data, color){
+  if(charts[id])charts[id].destroy();
+  const ctx=document.getElementById(id).getContext('2d');
+  charts[id]=new Chart(ctx,{
+    type,
+    data:{
+      labels,
+      datasets:[{
+        data,
+        backgroundColor: type==='bar'?color+'99':undefined,
+        borderColor: color,
+        borderWidth: type==='line'?2:0,
+        fill: type==='line',
+        backgroundColor: type==='line'?color+'18':color+'99',
+        tension:.4,
+        pointRadius:2,
+        pointHoverRadius:4,
+      }]
+    },
+    options:{...chartDefaults}
+  });
+}
+
+function fmt(sec){
+  if(!sec||sec<0)return '0m';
+  const m=Math.floor(sec/60), s=sec%60;
+  return m>0?`${m}m ${s}s`:`${s}s`;
+}
+
+async function load(){
+  document.getElementById('last-updated').textContent='Loading…';
+  try{
+    const token=new URLSearchParams(location.search).get('token')||'';
+    const r=await fetch(`/api/analytics?token=${encodeURIComponent(token)}`);
+    if(r.status===401){document.body.innerHTML='<p class="error" style="margin:2rem">Invalid token. Append <code>?token=YOUR_TOKEN</code> to the URL.</p>';return;}
+    const d=await r.json();
+
+    // ── Stat cards
+    const today=d.today||{};
+    const cards=[
+      {val:d.live,          label:'Online now'},
+      {val:today.total_sessions||0, label:'Sessions today'},
+      {val:today.unique_visitors||0,label:'Unique visitors today'},
+      {val:fmt(today.avg_duration_sec||0), label:'Avg session today'},
+      {val:today.rooms_created||0, label:'Rooms created today'},
+    ];
+    document.getElementById('cards').innerHTML=cards.map(c=>`
+      <div class="card">
+        <div class="card-val">${c.val}</div>
+        <div class="card-label">${c.label}</div>
+      </div>`).join('');
+
+    // ── 30-day charts
+    const days=d.last30||[];
+    const labels=days.map(r=>r.date.slice(5)); // MM-DD
+    makeChart('cSessions','line',labels,days.map(r=>r.total_sessions||0),GOLD);
+    makeChart('cVisitors','line',labels,days.map(r=>r.unique_visitors||0),TEAL);
+    makeChart('cDuration','line',labels,days.map(r=>Math.round((r.avg_duration_sec||0)/60)),GOLD);
+
+    // ── Hourly
+    const hours=d.hourly||Array(24).fill(0);
+    const hLabels=Array.from({length:24},(_,i)=>i+'h');
+    makeChart('cHourly','bar',hLabels,hours,TEAL);
+
+    // ── Country table
+    const countries=d.countries||{};
+    const total=Object.values(countries).reduce((a,b)=>a+b,0)||1;
+    const sorted=Object.entries(countries).sort((a,b)=>b[1]-a[1]).slice(0,12);
+    const tbody=document.querySelector('#country-table tbody');
+    tbody.innerHTML=sorted.map(([cc,n])=>`
+      <tr>
+        <td>${COUNTRY_NAMES[cc]||cc} <span style="color:#4a6068;font-size:.72rem">${cc}</span></td>
+        <td>${n}</td>
+        <td style="min-width:100px">
+          <div>${Math.round(n/total*100)}%</div>
+          <div class="bar-bg"><div class="bar-fill" style="width:${Math.round(n/total*100)}%"></div></div>
+        </td>
+      </tr>`).join('');
+    if(!sorted.length)tbody.innerHTML='<tr><td colspan="3" style="color:#4a6068;padding:.5rem">No data yet</td></tr>';
+
+    document.getElementById('last-updated').textContent=`Last updated: ${new Date().toLocaleTimeString()} · All data is aggregated and anonymised`;
+  }catch(e){
+    document.getElementById('last-updated').textContent='Error loading data: '+e.message;
+  }
+}
+
+// Auto-refresh every 60s
+load();
+setInterval(load, 60000);
+</script>
+</body>
+</html>
