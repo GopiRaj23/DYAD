@@ -5,6 +5,9 @@ const path     = require('path');
 const { Pool } = require('pg');
 const { randomBytes } = require('crypto');
 
+// ── Privacy-first analytics (PostgreSQL, no personal data stored) ────────────
+const analytics = require('./analytics.js');
+
 const app    = express();
 const server = http.createServer(app);
 // v39: raise pingTimeout to 5 min — mobile users browsing YouTube to copy a URL can be
@@ -33,6 +36,9 @@ pool.query(`CREATE TABLE IF NOT EXISTS beta_feedback (
 )`)
   .then(() => console.log('[DB] beta_feedback table ready'))
   .catch(err => console.error('[DB] init error:', err.message));
+
+// Init analytics with the shared pool (creates tables, schedules rollup + purge)
+analytics.init(pool);
 // ─────────────────────────────────────────────────────────────────────────────
 
 app.use(express.json());
@@ -57,6 +63,25 @@ app.post('/api/feedback', async (req, res) => {
     res.status(500).json({ error: 'DB error' });
   }
 });
+
+// ── GET /api/analytics — dashboard data (token-protected) ────────────────────
+app.get('/api/analytics', async (req, res) => {
+  const ANALYTICS_TOKEN = process.env.ANALYTICS_TOKEN || 'dyaad-local';
+  if (req.query.token !== ANALYTICS_TOKEN) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const [live, today, last30, hourly, countries] = await Promise.all([
+      analytics.getLiveCount(),
+      analytics.getTodayStats(),
+      analytics.getLast30Days(),
+      analytics.getHourlyToday(),
+      analytics.getAllCountries(),
+    ]);
+    res.json({ live, today, last30, hourly, countries });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+// ─────────────────────────────────────────────────────────────────────────────
 
 const rooms = new Map();
 
@@ -165,6 +190,11 @@ function allowRoomCreate(ip) {
 io.on('connection', (socket) => {
   console.log(`[+] ${socket.id}`);
 
+  // ── Analytics: record session start ──
+  let _analyticsId = null;
+  const _aIp = (socket.handshake.headers['x-forwarded-for'] || socket.handshake.address || '');
+  analytics.sessionStart(_aIp, 'stream').then(id => { _analyticsId = id; }).catch(() => {});
+
   // v39: per-socket rate limit state
   let _lastChatAt = 0;
   let _lastDrawAt = 0;
@@ -203,6 +233,7 @@ io.on('connection', (socket) => {
       roomCode, videoId: cleanVideoId, mode: cleanMode,
       participants: [cleanUsername]
     });
+    if (analytics) { analytics.incRoomsCreated(); }
   });
 
   /* ── JOIN ROOM ── */
@@ -651,6 +682,7 @@ io.on('connection', (socket) => {
   /* ── Host migration on disconnect ── */
   socket.on('disconnect', () => {
     console.log(`[-] ${socket.id}`);
+    if (analytics && _analyticsId) analytics.sessionEnd(_analyticsId);
     if (!socket.roomCode) return;
     const room = rooms.get(socket.roomCode);
     if (!room) return;
