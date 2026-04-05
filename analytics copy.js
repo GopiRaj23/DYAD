@@ -123,7 +123,7 @@ async function incRoomsCreated() {
 async function rollupToday() {
   if (!pool) return;
   const today = new Date().toISOString().slice(0, 10);
-  const dayStart = new Date(today + 'T00:00:00Z').getTime();
+  const dayStart = new Date(today).getTime();
   const dayEnd   = dayStart + 86400000;
   try {
     const { rows } = await pool.query(
@@ -222,7 +222,7 @@ async function getLast30Days() {
 async function getHourlyToday() {
   if (!pool) return Array(24).fill(0);
   const today = new Date().toISOString().slice(0, 10);
-  const dayStart = new Date(today + 'T00:00:00Z').getTime();
+  const dayStart = new Date(today).getTime();
   const dayEnd   = dayStart + 86400000;
   try {
     const { rows } = await pool.query(
@@ -230,11 +230,7 @@ async function getHourlyToday() {
       [dayStart, dayEnd]
     );
     const hours = Array(24).fill(0);
-    rows.forEach(r => { 
-      // Use UTC hours instead of local timezone
-      const hour = new Date(Number(r.joined_at)).getUTCHours();
-      hours[hour]++; 
-    });
+    rows.forEach(r => { hours[new Date(Number(r.joined_at)).getHours()]++; });
     return hours;
   } catch(e) { return Array(24).fill(0); }
 }
