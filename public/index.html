@@ -1808,21 +1808,20 @@ document.addEventListener('visibilitychange',()=>{
   if(document.visibilityState==='hidden'){
     _wasPlayingBeforeHide=player.getPlayerState()===YT.PlayerState.PLAYING||player.getPlayerState()===YT.PlayerState.BUFFERING;
   }else{
-    setTimeout(forceRepaint,80);setTimeout(forceRepaint,300);
-    if(_wasPlayingBeforeHide){
-      _wasPlayingBeforeHide=false;
-      // v39 fix: don't blindly resume — respect room state that may have changed while hidden.
-      // For guests: latestHostPlaying is kept up-to-date by heartbeats even when tab is hidden
-      // (socket.io continues running in background), so it accurately reflects current room state.
-      // For the host: host is authoritative, always safe to resume their own player.
+    // Always repaint first — GPU layer drops on mobile app-switch
+    setTimeout(forceRepaint,80);setTimeout(forceRepaint,400);setTimeout(forceRepaint,900);
+    if(!isSyncing){
+      isSyncing=true;
       const shouldResume=isHost||latestHostPlaying;
-      if(shouldResume){
-        isSyncing=true;
-        player.playVideo();
-        setTimeout(()=>{isSyncing=false;},600);
+      if(!isHost){
+        // Guest: seek to accurate host position (heartbeats kept latestHostTimestamp current while hidden)
+        const elapsed=latestHostPlaying?(Date.now()/1000-latestHostReceived):0;
+        const target=Math.max(0,latestHostTimestamp+elapsed);
+        try{player.seekTo(target,true);}catch(e){}
       }
-      // If host paused while we were away: skip resume here; the next heartbeat (within 1s)
-      // will apply the pause since lastLocalSyncAt is not set by this path.
+      if(shouldResume&&_wasPlayingBeforeHide){try{player.playVideo();}catch(e){}}
+      _wasPlayingBeforeHide=false;
+      setTimeout(()=>{isSyncing=false;},800);
     }
   }
 });
@@ -1932,14 +1931,20 @@ function startWatchdog(){
   _watchdogInt=setInterval(()=>{
     if(!player||!ytLoaded)return;
     forceRepaint(); // preventive GPU layer refresh — zero playback impact
-    if(player.getPlayerState()===-1&&!isSyncing){ // player reset after error — self-heal
+    const state=player.getPlayerState();
+    if(isSyncing)return;
+    // State -1 = player unstarted/reset (black screen). Also catch guests stuck paused when host is playing.
+    const stateReset=state===-1;
+    const guestStuck=!isHost&&latestHostPlaying&&state!==YT.PlayerState.PLAYING&&state!==YT.PlayerState.BUFFERING;
+    if(stateReset||guestStuck){
       isSyncing=true;
-      const target=isHost?player.getCurrentTime():Math.max(0,latestHostTimestamp);
+      const elapsed=latestHostPlaying?(Date.now()/1000-latestHostReceived):0;
+      const target=isHost?player.getCurrentTime():Math.max(0,latestHostTimestamp+elapsed);
       try{player.seekTo(target,true);}catch(e){}
       if(!isHost&&latestHostPlaying){try{player.playVideo();}catch(e){}}
       else if(!isHost){try{player.pauseVideo();}catch(e){}}
-      setTimeout(()=>{isSyncing=false;},1000);
-      flashSync();
+      setTimeout(()=>{isSyncing=false;},1200);
+      if(stateReset)flashSync();
     }
   },8000);
 }
@@ -2433,6 +2438,9 @@ function leaveRoom(){
   strokeHistory=[];remoteStrokeHistory=[];
   // v38: reset video/sync state so new room starts clean
   latestHostTimestamp=0;latestHostPlaying=false;_ppCycles=0;_syncDepth=0;
+  // Clear chat messages so old room's chat doesn't appear in next room
+  const wm=document.getElementById('watch-msgs');if(wm)wm.innerHTML='';
+  const im=document.getElementById('ink-msgs');if(im)im.innerHTML='';
   // Reset room state
   roomCode='';myUsername='';isHost=false;
   document.getElementById('page-room').classList.add('hidden');
@@ -2461,16 +2469,10 @@ function setRole(role){
   ['role-badge','role-badge-ink'].forEach(id=>{
     const el=document.getElementById(id);if(el)el.textContent=label;
   });
-  // Guests see waiting message and no load row; hosts see URL input
-  if(role==='guest'){
-    const nv=document.getElementById('no-video');
-    if(nv){const h=nv.querySelector('h3');if(h)h.textContent='Waiting for host…';}
-    const lr=document.getElementById('no-video-load-row');if(lr)lr.style.display='none';
-  }else{
-    const nv=document.getElementById('no-video');
-    if(nv){const h=nv.querySelector('h3');if(h)h.textContent='Paste a YouTube URL';}
-    const lr=document.getElementById('no-video-load-row');if(lr)lr.style.display='flex';
-  }
+  // Both host and guest can load/change video — show URL input for everyone
+  const nv=document.getElementById('no-video');
+  if(nv){const h=nv.querySelector('h3');if(h)h.textContent='Paste a YouTube URL';}
+  const lr=document.getElementById('no-video-load-row');if(lr)lr.style.display='flex';
 }
 // Update members in both watch and ink panels
 function setMembers(names){
