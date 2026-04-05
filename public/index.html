@@ -1279,7 +1279,7 @@ button{
         </div>
         <div class="chat-input-row">
           <button class="emoji-ico" onclick="toggleQE('watch')">😊</button>
-          <input type="text" id="watch-input" placeholder="Type a message…" maxlength="300" autocomplete="off"/>
+          <input type="text" id="watch-input" placeholder="Type a message…" maxlength="300" autocomplete="off" enterkeyhint="send"/>
           <button class="chat-send chat-send-icon" onclick="sendChat('watch')" title="Send">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
           </button>
@@ -1332,7 +1332,7 @@ button{
         </div>
         <div class="chat-input-row">
           <button class="emoji-ico" onclick="toggleQE('ink')">😊</button>
-          <input type="text" id="ink-input" placeholder="Guess the word…" maxlength="100" autocomplete="off"/>
+          <input type="text" id="ink-input" placeholder="Guess the word…" maxlength="100" autocomplete="off" enterkeyhint="send"/>
           <button class="chat-send chat-send-icon" onclick="sendChat('ink')" title="Send / Guess">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
           </button>
@@ -1616,7 +1616,9 @@ async function loadFromNoVideo(){
     await createPlayer(vid,0);
     try{player.playVideo();}catch(e){}
   }
-  if(isHost){socket.emit('change-video',{videoId:vid});startHeartbeat();}
+  // Any user (host or guest) can change video — server broadcasts watch-sync to everyone else.
+  socket.emit('change-video',{videoId:vid});
+  if(isHost)startHeartbeat();
   switchTab('watch');
   if(inp)inp.value='';
 }
@@ -1703,8 +1705,12 @@ window.addEventListener('DOMContentLoaded',()=>{
   // Room key bindings
   document.getElementById('no-video-url').addEventListener('keydown',e=>{if(e.key==='Enter')loadFromNoVideo();});
   document.getElementById('next-url').addEventListener('keydown',e=>{if(e.key==='Enter')loadNextVideo();});
-  document.getElementById('watch-input').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();sendChat('watch');}});
-  document.getElementById('ink-input').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();sendChat('ink');}});
+  // keydown: desktop + iOS. keyup: Android IME fires key='Unidentified' on keydown → catches Enter on keyup instead.
+  // isComposing guard prevents double-fire during CJK composition.
+  document.getElementById('watch-input').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.isComposing){e.preventDefault();sendChat('watch');}});
+  document.getElementById('watch-input').addEventListener('keyup',e=>{if(e.key==='Enter'&&!e.isComposing)sendChat('watch');});
+  document.getElementById('ink-input').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.isComposing){e.preventDefault();sendChat('ink');}});
+  document.getElementById('ink-input').addEventListener('keyup',e=>{if(e.key==='Enter'&&!e.isComposing)sendChat('ink');});
   document.getElementById('watch-input').addEventListener('input',()=>onType('watch'));
   document.getElementById('ink-input').addEventListener('input',()=>onType('ink'));
 
@@ -2594,29 +2600,41 @@ function clearPauseBanner(){
    to whatever space remains. Works identically for both Watch and InkMind tabs. */
 function applyKeyboardLayout(){
   if(!window.visualViewport)return;
-  // v36b: pure dimension comparison — portrait when width<height, cap at 768 to exclude tablets
   const portrait=window.innerWidth<window.innerHeight&&window.innerWidth<768;
+  const pr=document.getElementById('page-room');
   const rr=document.getElementById('room-right');
   const rl=document.getElementById('room-left');
-  if(!rr||!rl)return;
-  if(!portrait){rr.style.maxHeight='';rl.style.maxHeight='';return;}
+  if(!pr||!rr||!rl)return;
+  if(!portrait){
+    pr.style.height='';
+    rr.style.maxHeight='';rr.style.height='';
+    rl.style.maxHeight='';rl.style.overflow='';
+    pr.classList.remove('kbd-open');
+    return;
+  }
   const vvh=Math.round(window.visualViewport.height);
   const kbdH=Math.max(0,window.innerHeight-vvh);
   if(kbdH>80){
-    // Keyboard open — freeze room-left at its current height so it doesn't reflow
-    const rlH=rl.offsetHeight;
-    rl.style.maxHeight=rlH+'px';
+    // Constrain page-room to visible viewport — fixes position:fixed extending under keyboard
+    pr.style.height=vvh+'px';
+    pr.classList.add('kbd-open');
     const topbarH=document.querySelector('.topbar')?.offsetHeight||48;
     const ribbonH=document.querySelector('.ribbon')?.offsetHeight||40;
     const dockH=document.querySelector('.dock')?.offsetHeight||52;
-    const usedH=topbarH+ribbonH+rlH+dockH;
-    const remaining=Math.max(vvh-usedH,80); // at least 80px for chat
-    rr.style.maxHeight=remaining+'px';
-    document.getElementById('page-room').classList.add('kbd-open');
+    const available=Math.max(vvh-topbarH-ribbonH-dockH,120);
+    // Video/game: at most 38% — keeps it visible but compact above chat
+    const rlH=Math.min(rl.offsetHeight,Math.floor(available*0.38));
+    rl.style.maxHeight=rlH+'px';
+    rl.style.overflow='hidden';
+    // Chat: remaining space
+    const rrH=Math.max(available-rlH,80);
+    rr.style.maxHeight=rrH+'px';
+    rr.style.height=rrH+'px';
   }else{
-    rr.style.maxHeight='';
-    rl.style.maxHeight='';
-    document.getElementById('page-room').classList.remove('kbd-open');
+    pr.style.height='';
+    rr.style.maxHeight='';rr.style.height='';
+    rl.style.maxHeight='';rl.style.overflow='';
+    pr.classList.remove('kbd-open');
     if(currentTab==='ink')requestAnimationFrame(()=>requestAnimationFrame(resizeCanvas));
   }
 }
