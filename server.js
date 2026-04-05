@@ -5,14 +5,8 @@ const path     = require('path');
 const { Pool } = require('pg');
 const { randomBytes } = require('crypto');
 
-// ── Privacy-first analytics (local SQLite, no personal data stored) ──────────
-let analytics = null;
-try {
-  analytics = require('./analytics.js');
-  console.log('[analytics] loaded — dashboard at /analytics.html?token=<ANALYTICS_TOKEN>');
-} catch(e) {
-  console.warn('[analytics] disabled:', e.message);
-}
+// ── Privacy-first analytics (PostgreSQL, no personal data stored) ────────────
+const analytics = require('./analytics.js');
 
 const app    = express();
 const server = http.createServer(app);
@@ -42,6 +36,9 @@ pool.query(`CREATE TABLE IF NOT EXISTS beta_feedback (
 )`)
   .then(() => console.log('[DB] beta_feedback table ready'))
   .catch(err => console.error('[DB] init error:', err.message));
+
+// Init analytics with the shared pool (creates tables, schedules rollup + purge)
+analytics.init(pool);
 // ─────────────────────────────────────────────────────────────────────────────
 
 app.use(express.json());
@@ -68,17 +65,21 @@ app.post('/api/feedback', async (req, res) => {
 });
 
 // ── GET /api/analytics — dashboard data (token-protected) ────────────────────
-app.get('/api/analytics', (req, res) => {
+app.get('/api/analytics', async (req, res) => {
   const ANALYTICS_TOKEN = process.env.ANALYTICS_TOKEN || 'dyaad-local';
   if (req.query.token !== ANALYTICS_TOKEN) return res.status(401).json({ error: 'Unauthorized' });
-  if (!analytics) return res.status(503).json({ error: 'Analytics not available' });
-  res.json({
-    live:      analytics.getLiveCount(),
-    today:     analytics.getTodayStats(),
-    last30:    analytics.getLast30Days(),
-    hourly:    analytics.getHourlyToday(),
-    countries: analytics.getAllCountries(),
-  });
+  try {
+    const [live, today, last30, hourly, countries] = await Promise.all([
+      analytics.getLiveCount(),
+      analytics.getTodayStats(),
+      analytics.getLast30Days(),
+      analytics.getHourlyToday(),
+      analytics.getAllCountries(),
+    ]);
+    res.json({ live, today, last30, hourly, countries });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -191,11 +192,8 @@ io.on('connection', (socket) => {
 
   // ── Analytics: record session start ──
   let _analyticsId = null;
-  if (analytics) {
-    const ip = socket.handshake.headers['x-forwarded-for']?.split(',')[0].trim()
-               || socket.handshake.address;
-    _analyticsId = analytics.sessionStart(ip, 'stream'); // mode updated on create/join
-  }
+  const _aIp = (socket.handshake.headers['x-forwarded-for'] || socket.handshake.address || '');
+  analytics.sessionStart(_aIp, 'stream').then(id => { _analyticsId = id; }).catch(() => {});
 
   // v39: per-socket rate limit state
   let _lastChatAt = 0;
