@@ -161,7 +161,8 @@ function makeScribble() {
     turnOrder: [], roundsCompleted: 0, totalRounds: 0, roundsPerPlayer: 1,
     scores: {}, guessedThisRound: [],
     revealedPositions: new Set(), hintsGiven: 0,
-    usedWords: new Set()
+    usedWords: new Set(),
+    canvasEvents: []
   };
 }
 
@@ -286,7 +287,8 @@ io.on('connection', (socket) => {
         socket.emit('game-sync', {
           phase: 'drawing', drawerId: sc.drawerId, drawerName: sc.drawerName,
           roundNum: sc.roundsCompleted + 1, totalRounds: sc.totalRounds,
-          timeLeft: sc.timeLeft, scores: buildScoreList(room), blanks, wordLength: sc.word.length
+          timeLeft: sc.timeLeft, scores: buildScoreList(room), blanks, wordLength: sc.word.length,
+          canvasEvents: sc.canvasEvents
         });
       } else {
         socket.emit('game-sync', {
@@ -503,6 +505,7 @@ io.on('connection', (socket) => {
     sc.guessedThisRound = [];
     sc.revealedPositions = new Set();
     sc.hintsGiven = 0;
+    sc.canvasEvents = [];
     clearScribbleTimers(sc);
 
     io.to(roomCode).emit('round-start', {
@@ -659,15 +662,38 @@ io.on('connection', (socket) => {
     }, 3500);
   }
 
-  // v39: draw-event rate limit — max 1 per 16ms (~60fps) to prevent event flooding
-  socket.on('draw-event',   d  => {
-    const now = Date.now();
-    if (now - _lastDrawAt < 16) return;
-    _lastDrawAt = now;
-    if (socket.roomCode) socket.to(socket.roomCode).emit('draw-event', d);
+  // Client throttles draw-event emissions to 16ms; server relays ALL events it receives.
+  socket.on('draw-event', d => {
+    if (!socket.roomCode) return;
+    socket.to(socket.roomCode).emit('draw-event', d);
+    // Persist canvas state for late-joiners (game-sync replay)
+    const room = rooms.get(socket.roomCode);
+    if (room) {
+      const sc = room.scribble;
+      if (sc.active && sc.word) sc.canvasEvents.push(d);
+    }
   });
-  socket.on('canvas-clear', () => { if (socket.roomCode) socket.to(socket.roomCode).emit('canvas-clear'); });
-  socket.on('canvas-undo',  () => { if (socket.roomCode) socket.to(socket.roomCode).emit('canvas-undo'); });
+  socket.on('canvas-clear', () => {
+    if (!socket.roomCode) return;
+    socket.to(socket.roomCode).emit('canvas-clear');
+    const room = rooms.get(socket.roomCode);
+    if (room) room.scribble.canvasEvents = [];
+  });
+  socket.on('canvas-undo', () => {
+    if (!socket.roomCode) return;
+    socket.to(socket.roomCode).emit('canvas-undo');
+    // Pop the last stroke (all events from the last 'start' to end)
+    const room = rooms.get(socket.roomCode);
+    if (room) {
+      const evs = room.scribble.canvasEvents;
+      // Find the index of the last 'start' event and remove from there to end
+      let lastStart = -1;
+      for (let i = evs.length - 1; i >= 0; i--) {
+        if (evs[i].type === 'start') { lastStart = i; break; }
+      }
+      if (lastStart !== -1) evs.splice(lastStart);
+    }
+  });
 
   socket.on('scribble-stop', () => {
     if (!socket.roomCode) return;

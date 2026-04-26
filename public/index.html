@@ -1394,9 +1394,11 @@ let wTyping=false, wTypingTimer=null, iTyping=false, iTypingTimer=null;
 // Canvas
 let drawCtx=null, drawCanvas=null, drawPenDown=false, localLastX=0, localLastY=0;
 let remoteLastNX=0, remoteLastNY=0;
+let remoteHasStart=false; // Fix 3: guard spurious lines before first 'start'
 let strokeHistory=[], currentStroke=null;
 let remoteStrokeHistory=[], remoteCurrentStroke=null;
 let currentColor='#1a1a2e', currentBrushSize=5;
+let _lastDrawEmitAt=0; // Fix 1: client-side 16ms throttle for socket.emit only
 
 // Game
 let isDrawer=false, scribbleActive=false, currentBlanksStr='';
@@ -1625,7 +1627,8 @@ function switchTab(tab){
   document.getElementById('canvas-toolbar').style.display=(inInk&&scribbleActive&&isDrawer)?'flex':'none';
   if(inInk){
     // Layout must settle (adjustMobileLayout may have changed room-left height) before canvas resize
-    requestAnimationFrame(()=>requestAnimationFrame(()=>{resizeCanvas();}));
+    // Fix 4: also restore remote stroke history on return to ink tab (observer canvas)
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{resizeCanvas();if(!isDrawer)redrawRemote();}));
   }
   // Mobile chat: close when switching tabs
   if(mobileChatOpen){closeMobileChat();}
@@ -2268,10 +2271,10 @@ const evN=e=>{const r=drawCanvas.getBoundingClientRect();return{nx:(e.clientX-r.
 const tchN=t=>{const r=drawCanvas.getBoundingClientRect();return{nx:(t.clientX-r.left)/r.width,ny:(t.clientY-r.top)/r.height};};
 const nPx=(nx,ny)=>({x:nx*drawCanvas.width,y:ny*drawCanvas.height});
 function md(e){if(!isDrawer||!scribbleActive)return;drawPenDown=true;currentStroke=[];const{nx,ny}=evN(e);const{x,y}=nPx(nx,ny);localLastX=x;localLastY=y;dot(x,y);const ev={type:'start',nx,ny,color:currentColor,size:currentBrushSize};currentStroke.push(ev);socket.emit('draw-event',ev);}
-function mm(e){if(!isDrawer||!scribbleActive||!drawPenDown)return;const{nx,ny}=evN(e);const{x,y}=nPx(nx,ny);line(localLastX,localLastY,x,y,currentColor,currentBrushSize);localLastX=x;localLastY=y;const ev={type:'move',nx,ny,color:currentColor,size:currentBrushSize};currentStroke.push(ev);socket.emit('draw-event',ev);}
+function mm(e){if(!isDrawer||!scribbleActive||!drawPenDown)return;const{nx,ny}=evN(e);const{x,y}=nPx(nx,ny);line(localLastX,localLastY,x,y,currentColor,currentBrushSize);localLastX=x;localLastY=y;const ev={type:'move',nx,ny,color:currentColor,size:currentBrushSize};currentStroke.push(ev);const _now=Date.now();if(_now-_lastDrawEmitAt>=16){_lastDrawEmitAt=_now;socket.emit('draw-event',ev);}}
 function mu(){if(!drawPenDown)return;drawPenDown=false;if(currentStroke?.length>0){strokeHistory.push(currentStroke);currentStroke=null;}if(socket&&scribbleActive)socket.emit('draw-event',{type:'end'});}
 function ts(e){e.preventDefault();if(!isDrawer||!scribbleActive)return;drawPenDown=true;currentStroke=[];const{nx,ny}=tchN(e.touches[0]);const{x,y}=nPx(nx,ny);localLastX=x;localLastY=y;dot(x,y);const ev={type:'start',nx,ny,color:currentColor,size:currentBrushSize};currentStroke.push(ev);socket.emit('draw-event',ev);}
-function tm(e){e.preventDefault();if(!isDrawer||!scribbleActive||!drawPenDown)return;const{nx,ny}=tchN(e.touches[0]);const{x,y}=nPx(nx,ny);line(localLastX,localLastY,x,y,currentColor,currentBrushSize);localLastX=x;localLastY=y;const ev={type:'move',nx,ny,color:currentColor,size:currentBrushSize};currentStroke.push(ev);socket.emit('draw-event',ev);}
+function tm(e){e.preventDefault();if(!isDrawer||!scribbleActive||!drawPenDown)return;const{nx,ny}=tchN(e.touches[0]);const{x,y}=nPx(nx,ny);line(localLastX,localLastY,x,y,currentColor,currentBrushSize);localLastX=x;localLastY=y;const ev={type:'move',nx,ny,color:currentColor,size:currentBrushSize};currentStroke.push(ev);const _now=Date.now();if(_now-_lastDrawEmitAt>=16){_lastDrawEmitAt=_now;socket.emit('draw-event',ev);}}
 function te(e){e.preventDefault();if(!drawPenDown)return;drawPenDown=false;if(currentStroke?.length>0){strokeHistory.push(currentStroke);currentStroke=null;}if(socket&&scribbleActive)socket.emit('draw-event',{type:'end'});}
 function dot(x,y){drawCtx.beginPath();drawCtx.arc(x,y,currentBrushSize/2,0,Math.PI*2);drawCtx.fillStyle=currentColor;drawCtx.fill();}
 function line(x1,y1,x2,y2,col,sz){drawCtx.beginPath();drawCtx.moveTo(x1,y1);drawCtx.lineTo(x2,y2);drawCtx.strokeStyle=col;drawCtx.lineWidth=sz;drawCtx.lineCap='round';drawCtx.lineJoin='round';drawCtx.stroke();}
@@ -2971,6 +2974,7 @@ function initSocket(){
 
   socket.on('round-start',({drawerName,drawerId,roundNum,totalRounds,choiceTime})=>{
     timerTotal=60;strokeHistory=[];remoteStrokeHistory=[];currentBlanksStr='';
+    remoteLastNX=0;remoteLastNY=0;remoteHasStart=false;
     document.getElementById('round-counter').textContent=`Sketch ${roundNum}/${totalRounds}`;
     document.getElementById('round-counter').classList.remove('hidden');
     document.getElementById('timer-ring').classList.add('hidden');
@@ -3054,7 +3058,7 @@ function initSocket(){
   });
 
   // Fix #4: late-joiner silent sync
-  socket.on('game-sync',({phase,drawerId,drawerName,roundNum,totalRounds,timeLeft,scores,blanks,wordLength})=>{
+  socket.on('game-sync',({phase,drawerId,drawerName,roundNum,totalRounds,timeLeft,scores,blanks,wordLength,canvasEvents})=>{
     scribbleActive=true;isDrawer=(drawerId===socket.id);
     document.getElementById('round-counter').textContent=`Sketch ${roundNum}/${totalRounds}`;
     document.getElementById('round-counter').classList.remove('hidden');
@@ -3073,6 +3077,18 @@ function initSocket(){
         const sA=document.createElement('strong');sA.textContent=drawerName;gsA.append(sA,' is drawing');
         if(blanks){currentBlanksStr=blanks;renderBlanks(blanks,null);}
         document.getElementById('ink-chat-title').textContent='🎯 Guess the word!';
+      }
+      // Fix 2: replay stored canvas events so late-joiners see current drawing
+      if(canvasEvents&&canvasEvents.length){
+        requestAnimationFrame(()=>{
+          let replayLastNX=0,replayLastNY=0,replayHasStart=false;
+          for(const ev of canvasEvents){
+            if(!drawCtx||!drawCanvas)break;
+            if(ev.type==='start'){const{x,y}=nPx(ev.nx,ev.ny);drawCtx.beginPath();drawCtx.arc(x,y,ev.size/2,0,Math.PI*2);drawCtx.fillStyle=ev.color;drawCtx.fill();replayLastNX=ev.nx;replayLastNY=ev.ny;replayHasStart=true;}
+            else if(ev.type==='move'&&replayHasStart){const{x:x1,y:y1}=nPx(replayLastNX,replayLastNY),{x:x2,y:y2}=nPx(ev.nx,ev.ny);line(x1,y1,x2,y2,ev.color,ev.size);replayLastNX=ev.nx;replayLastNY=ev.ny;}
+            else if(ev.type==='end'){replayHasStart=false;}
+          }
+        });
       }
     }else if(phase==='choosing'){
       document.getElementById('choosing-msg').textContent=`${drawerName} is choosing…`;
@@ -3138,10 +3154,11 @@ function initSocket(){
   socket.on('draw-event',data=>{
     if(!drawCtx||!drawCanvas)return;
     rTrack(data);
-    if(data.type==='start'){const{x,y}=nPx(data.nx,data.ny);drawCtx.beginPath();drawCtx.arc(x,y,data.size/2,0,Math.PI*2);drawCtx.fillStyle=data.color;drawCtx.fill();remoteLastNX=data.nx;remoteLastNY=data.ny;}
-    else if(data.type==='move'){const{x:x1,y:y1}=nPx(remoteLastNX,remoteLastNY),{x:x2,y:y2}=nPx(data.nx,data.ny);line(x1,y1,x2,y2,data.color,data.size);remoteLastNX=data.nx;remoteLastNY=data.ny;}
+    if(data.type==='start'){const{x,y}=nPx(data.nx,data.ny);drawCtx.beginPath();drawCtx.arc(x,y,data.size/2,0,Math.PI*2);drawCtx.fillStyle=data.color;drawCtx.fill();remoteLastNX=data.nx;remoteLastNY=data.ny;remoteHasStart=true;}
+    else if(data.type==='move'){if(!remoteHasStart)return;const{x:x1,y:y1}=nPx(remoteLastNX,remoteLastNY),{x:x2,y:y2}=nPx(data.nx,data.ny);line(x1,y1,x2,y2,data.color,data.size);remoteLastNX=data.nx;remoteLastNY=data.ny;}
+    else if(data.type==='end'){remoteHasStart=false;}
   });
-  socket.on('canvas-clear',()=>{remoteStrokeHistory=[];if(drawCtx)drawCtx.clearRect(0,0,drawCanvas.width,drawCanvas.height);});
+  socket.on('canvas-clear',()=>{remoteStrokeHistory=[];remoteLastNX=0;remoteLastNY=0;remoteHasStart=false;if(drawCtx)drawCtx.clearRect(0,0,drawCanvas.width,drawCanvas.height);});
   socket.on('canvas-undo',()=>{remoteStrokeHistory.pop();redrawRemote();});
 }
 
